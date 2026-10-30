@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { DEMO_ANNIVERSARY_DATE } from '@/lib/demo-data';
 
 const coverImage =
-  'https://chatgpt.com/s/m_6ae498afd5648191a5c3c3ce5fad99fe';
+  'https://www.magnific.com/premium-vector/illustration-love-romantic-landscape-with-couple-love_4948073.htm';
 
 export default function WelcomePage() {
   const router = useRouter();
