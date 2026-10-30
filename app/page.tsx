@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { DEMO_ANNIVERSARY_DATE } from '@/lib/demo-data';
 
 const coverImage =
-  'https://images.pexels.com/photos/1024963/pexels-photo-1024963.jpeg?auto=compress&cs=tinysrgb&h=1600&w=2400';
+  'https://chatgpt.com/s/m_6ae498afd5648191a5c3c3ce5fad99fe';
 
 export default function WelcomePage() {
   const router = useRouter();
