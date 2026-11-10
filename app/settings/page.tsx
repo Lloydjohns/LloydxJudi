@@ -10,16 +10,43 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { Heart, Calendar, Users, Music2, Download, Save, Plus, Music, Lock } from 'lucide-react';
-import { DEMO_COUPLE_NAME, DEMO_ANNIVERSARY_DATE } from '@/lib/demo-data';
+import { Heart, Calendar, Users, Music2, Download, Save, Plus, Music, Lock, FileText, QrCode } from 'lucide-react';
+import {
+  DEMO_COUPLE_NAME,
+  DEMO_ANNIVERSARY_DATE,
+  demoMemories,
+  demoSpecialDates,
+  demoPlaylistTracks,
+  getDemoChapters,
+} from '@/lib/demo-data';
+import type { LoveLetter, Memory, TimelineEvent } from '@/lib/types';
+import { downloadStoryPdf } from '@/lib/story-pdf';
 
 const PROFILE_KEY = 'llodxjudi-couple-profile';
+
+function getDefaultLetters(): LoveLetter[] {
+  return getDemoChapters(new Date(DEMO_ANNIVERSARY_DATE))
+    .filter((chapter) => chapter.monthlyLetter)
+    .map((chapter) => ({
+      id: `demo-letter-${chapter.id}`,
+      coupleId: 'demo',
+      title: `Month ${chapter.monthNumber}: ${chapter.title}`,
+      body: chapter.monthlyLetter ?? '',
+      recipientUserId: null,
+      revealAt: null,
+      createdBy: 'demo',
+      createdAt: chapter.createdAt,
+    }));
+}
 
 export default function SettingsPage() {
   const [coupleName, setCoupleName] = useState(DEMO_COUPLE_NAME);
   const [anniversaryDate, setAnniversaryDate] = useState(DEMO_ANNIVERSARY_DATE);
   const [partnerEmail, setPartnerEmail] = useState('');
   const [profileSaved, setProfileSaved] = useState(false);
+  const [inviteStatus, setInviteStatus] = useState('');
+  const [sendingInvite, setSendingInvite] = useState(false);
+  const [exportStatus, setExportStatus] = useState('');
 
   useEffect(() => {
     const raw = localStorage.getItem(PROFILE_KEY);
@@ -41,32 +68,54 @@ export default function SettingsPage() {
     window.setTimeout(() => setProfileSaved(false), 2000);
   };
 
-  const invitePartner = (event: React.FormEvent<HTMLFormElement>) => {
+  const readList = <T,>(key: string, fallback: T[]): T[] => {
+    const raw = localStorage.getItem(key);
+    if (raw === null) return fallback;
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) throw new Error(`Saved ${key} data is not a list.`);
+    return parsed as T[];
+  };
+
+  const getStoryCollections = () => ({
+    memories: readList<Memory>('llodxjudi-memories', demoMemories),
+    letters: readList<LoveLetter>('llodxjudi-letters', getDefaultLetters()),
+    specialDates: readList('llodxjudi-special-dates', demoSpecialDates),
+    playlist: readList('llodxjudi-playlist', demoPlaylistTracks),
+    timelineEvents: readList<TimelineEvent>('llodxjudi-timeline-events', []),
+  });
+
+  const invitePartner = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const subject = encodeURIComponent(`${coupleName || 'Our Story'} — join me`);
-    const body = encodeURIComponent('I would love for you to join me in our shared story.');
-    window.location.href = `mailto:${partnerEmail.trim()}?subject=${subject}&body=${body}`;
+    setSendingInvite(true);
+    setInviteStatus('');
+    try {
+      const response = await fetch('/api/invite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: partnerEmail.trim(), coupleName }),
+      });
+      const result = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(result.error || 'Could not send invitation.');
+      setInviteStatus('Invitation sent successfully.');
+      setPartnerEmail('');
+    } catch (error) {
+      setInviteStatus(error instanceof Error ? error.message : 'Could not send invitation.');
+    } finally {
+      setSendingInvite(false);
+    }
   };
 
   const exportStory = () => {
     try {
-      const keys = [
-        'llodxjudi-memories',
-        'llodxjudi-letters',
-        'llodxjudi-special-dates',
-        'llodxjudi-playlist',
-        'llodxjudi-timeline-events',
-      ];
-      const story = Object.fromEntries(
-        keys.map((key) => {
-          const raw = localStorage.getItem(key);
-          return [key, raw ? JSON.parse(raw) : []];
-        })
-      );
+      const collections = getStoryCollections();
       const blob = new Blob([JSON.stringify({
         couple: { name: coupleName, anniversaryDate },
         exportedAt: new Date().toISOString(),
-        ...story,
+        'llodxjudi-memories': collections.memories,
+        'llodxjudi-letters': collections.letters,
+        'llodxjudi-special-dates': collections.specialDates,
+        'llodxjudi-playlist': collections.playlist,
+        'llodxjudi-timeline-events': collections.timelineEvents,
       }, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -76,6 +125,42 @@ export default function SettingsPage() {
       window.setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (error) {
       window.alert(error instanceof Error ? `Could not export our story: ${error.message}` : 'Could not export our story.');
+    }
+  };
+
+  const downloadQrCode = async () => {
+    setExportStatus('');
+    try {
+      const { default: QRCode } = await import('qrcode');
+      const dataUrl = await QRCode.toDataURL(window.location.origin, { errorCorrectionLevel: 'M', margin: 1, width: 512 });
+      const link = document.createElement('a');
+      link.href = dataUrl;
+      link.download = 'our-story-qr.png';
+      link.click();
+      setExportStatus('QR code downloaded. It opens this app.');
+    } catch (error) {
+      setExportStatus(error instanceof Error ? `Could not create QR code: ${error.message}` : 'Could not create QR code.');
+    }
+  };
+
+  const downloadPdf = async () => {
+    setExportStatus('');
+    try {
+      const collections = getStoryCollections();
+      const rawProfile = localStorage.getItem(PROFILE_KEY);
+      const profile = rawProfile ? JSON.parse(rawProfile) as { name?: string; anniversaryDate?: string } : {};
+      await downloadStoryPdf({
+        couple: {
+          name: profile.name || coupleName,
+          anniversaryDate: profile.anniversaryDate || anniversaryDate,
+        },
+        memories: collections.memories,
+        letters: collections.letters,
+        timelineEvents: collections.timelineEvents,
+      });
+      setExportStatus('PDF downloaded. Scan its QR code to open this app.');
+    } catch (error) {
+      setExportStatus(error instanceof Error ? `Could not create PDF: ${error.message}` : 'Could not create PDF.');
     }
   };
 
@@ -136,13 +221,14 @@ export default function SettingsPage() {
                 <div><p className="text-sm font-medium">Judi</p><Badge variant="outline" className="text-xs">Partner</Badge></div>
               </div>
               <Separator />
-              <p className="text-sm text-muted-foreground">This opens your email app with an invitation message ready to send.</p>
+              <p className="text-sm text-muted-foreground">Send your partner an invitation email using the configured email service.</p>
               <form onSubmit={invitePartner} className="flex gap-2">
                 <Input type="email" required value={partnerEmail} onChange={(event) => setPartnerEmail(event.target.value)} placeholder="partner@email.com" aria-label="Partner email" className="border-primary/20" />
-                <Button type="submit" variant="outline" className="shrink-0">
-                  <Plus className="mr-1 h-4 w-4" /> Invite
+                <Button type="submit" variant="outline" className="shrink-0" disabled={sendingInvite}>
+                  <Plus className="mr-1 h-4 w-4" /> {sendingInvite ? 'Sending...' : 'Invite'}
                 </Button>
               </form>
+              {inviteStatus && <p role="status" className="text-sm text-muted-foreground">{inviteStatus}</p>}
             </CardContent>
           </Card>
 
@@ -164,13 +250,25 @@ export default function SettingsPage() {
           <Card className="border-primary/15 shadow-soft">
             <CardHeader>
               <CardTitle className="font-serif-display text-2xl">Our Story</CardTitle>
-              <CardDescription>Download a backup of your story data saved in this browser.</CardDescription>
+              <CardDescription>Download your browser-saved story, a QR code to this app, or a PDF with your photos and messages.</CardDescription>
             </CardHeader>
-            <CardContent>
-              <Button type="button" variant="outline" onClick={exportStory} className="w-full sm:w-auto">
-                <Download className="mr-2 h-4 w-4" />
-                Export our story
-              </Button>
+            <CardContent className="space-y-3">
+              <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                <Button type="button" variant="outline" onClick={exportStory} className="w-full sm:w-auto">
+                  <Download className="mr-2 h-4 w-4" />
+                  Export story data (JSON)
+                </Button>
+                <Button type="button" variant="outline" onClick={downloadQrCode} className="w-full sm:w-auto">
+                  <QrCode className="mr-2 h-4 w-4" />
+                  Download QR code
+                </Button>
+                <Button type="button" variant="outline" onClick={downloadPdf} className="w-full sm:w-auto">
+                  <FileText className="mr-2 h-4 w-4" />
+                  Download story PDF
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">The QR code opens this app and does not transfer browser-only story data. Photos blocked by their host may appear as image links in the PDF.</p>
+              {exportStatus && <p role="status" className="text-sm text-muted-foreground">{exportStatus}</p>}
             </CardContent>
           </Card>
 

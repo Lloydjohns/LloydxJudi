@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
-import { Lock, BookOpen, Calendar, ArrowRight, MapPin, Pencil, Plus, Save, Trash2, X } from 'lucide-react';
+import { Lock, BookOpen, Calendar, ArrowRight, MapPin, Pencil, Plus, Save, Trash2, X, ImagePlus } from 'lucide-react';
 import { demoMemories, DEMO_ANNIVERSARY_DATE } from '@/lib/demo-data';
 import { getDemoChapters } from '@/lib/demo-data';
 import {
@@ -36,6 +36,7 @@ export default function TimelinePage() {
   const [title, setTitle] = useState('');
   const [eventDate, setEventDate] = useState('');
   const [story, setStory] = useState('');
+  const [imageUrl, setImageUrl] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -48,6 +49,7 @@ export default function TimelinePage() {
     setTitle('');
     setEventDate('');
     setStory('');
+    setImageUrl('');
   };
 
   const saveEvent = (event: React.FormEvent<HTMLFormElement>) => {
@@ -61,6 +63,7 @@ export default function TimelinePage() {
       title: trimmedTitle,
       eventDate,
       story: trimmedStory,
+      imageUrl: imageUrl.trim() || null,
       createdAt: existing?.createdAt ?? new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -77,6 +80,7 @@ export default function TimelinePage() {
     setTitle(entry.title);
     setEventDate(entry.eventDate);
     setStory(entry.story);
+    setImageUrl(entry.imageUrl ?? '');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -115,6 +119,13 @@ export default function TimelinePage() {
                 <Label htmlFor="timeline-story">Story</Label>
                 <Textarea id="timeline-story" value={story} onChange={(event) => setStory(event.target.value)} required placeholder="Write what made this moment special..." />
               </div>
+              <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="timeline-image" className="flex items-center gap-1.5">
+                  <ImagePlus className="h-4 w-4 text-primary" />
+                  Image link (optional)
+                </Label>
+                <Input id="timeline-image" type="url" value={imageUrl} onChange={(event) => setImageUrl(event.target.value)} placeholder="https://example.com/your-photo.jpg" />
+              </div>
               <div className="flex gap-2 sm:col-span-2">
                 <Button type="submit" className="bg-gradient-wine text-white hover:opacity-90">
                   {editingId ? <Save className="mr-2 h-4 w-4" /> : <Plus className="mr-2 h-4 w-4" />}
@@ -137,6 +148,10 @@ export default function TimelinePage() {
                     <p className="text-xs text-muted-foreground">{format(new Date(entry.eventDate), 'MMMM d, yyyy')}</p>
                     <h3 className="font-serif-display text-lg font-semibold">{entry.title}</h3>
                     <p className="mt-1 whitespace-pre-line text-sm text-muted-foreground">{entry.story}</p>
+                    {entry.imageUrl && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={entry.imageUrl} alt={entry.title} className="mt-3 max-h-72 w-full rounded-lg object-cover" loading="lazy" />
+                    )}
                   </div>
                   <div className="flex shrink-0 gap-1">
                     <Button type="button" size="icon" variant="ghost" aria-label={`Edit ${entry.title}`} onClick={() => editEvent(entry)}><Pencil className="h-4 w-4" /></Button>

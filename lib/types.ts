@@ -61,6 +61,7 @@ export interface TimelineEvent {
   title: string;
   eventDate: string;
   story: string;
+  imageUrl?: string | null;
   createdAt: string;
   updatedAt: string;
 }
