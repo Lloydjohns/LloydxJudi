@@ -7,11 +7,11 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Calendar, Cake, MapPin, Gift, Heart, Plus, Save } from 'lucide-react';
+import { Calendar, Cake, MapPin, Gift, Heart, Save, Pencil, Trash2, X } from 'lucide-react';
 import { demoSpecialDates } from '@/lib/demo-data';
 import { format } from 'date-fns';
 import { useEffect, useMemo, useState } from 'react';
+import { makeLocalId, saveLocalList } from '@/lib/local-data';
 
 const STORAGE_KEY = 'llodxjudi-special-dates';
 
@@ -21,10 +21,15 @@ export default function SpecialDatesPage() {
   const [title, setTitle] = useState('');
   const [eventDate, setEventDate] = useState('');
   const [notes, setNotes] = useState('');
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   useEffect(() => {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return;
+    if (!raw) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(demoSpecialDates));
+      setCustomDates(demoSpecialDates);
+      return;
+    }
     try {
       const parsed = JSON.parse(raw) as typeof demoSpecialDates;
       setCustomDates(Array.isArray(parsed) ? parsed : []);
@@ -34,7 +39,7 @@ export default function SpecialDatesPage() {
   }, []);
 
   const sortedDates = useMemo(() => {
-    return [...customDates, ...demoSpecialDates].sort(
+    return [...customDates].sort(
       (a, b) => new Date(a.eventDate).getTime() - new Date(b.eventDate).getTime()
     );
   }, [customDates]);
@@ -55,7 +60,7 @@ export default function SpecialDatesPage() {
     if (!title.trim() || !eventDate) return;
 
     const newDate = {
-      id: `custom-date-${Date.now()}`,
+      id: editingId ?? makeLocalId('special-date'),
       coupleId: 'demo',
       title: title.trim(),
       eventDate,
@@ -64,12 +69,34 @@ export default function SpecialDatesPage() {
       createdAt: new Date().toISOString(),
     };
 
-    const next = [newDate, ...customDates];
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    const next = editingId
+      ? customDates.map((date) => date.id === editingId ? { ...newDate, createdAt: date.createdAt } : date)
+      : [newDate, ...customDates];
+    saveLocalList(STORAGE_KEY, next);
     setCustomDates(next);
     setTitle('');
     setEventDate('');
     setNotes('');
+    setEditingId(null);
+  };
+
+  const editDate = (date: (typeof demoSpecialDates)[number]) => {
+    setEditingId(date.id);
+    setTitle(date.title);
+    setEventDate(date.eventDate);
+    setNotes(date.notes ?? '');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const deleteDate = (id: string) => {
+    if (!window.confirm('Delete this special date?')) return;
+    const next = customDates.filter((date) => date.id !== id);
+    saveLocalList(STORAGE_KEY, next);
+    setCustomDates(next);
+    if (editingId === id) {
+      setEditingId(null);
+      setTitle(''); setEventDate(''); setNotes('');
+    }
   };
 
   return (
@@ -118,9 +145,12 @@ export default function SpecialDatesPage() {
                   />
                 </div>
               </div>
+              <div className="flex gap-2">
               <Button type="submit" className="bg-gradient-wine text-white hover:opacity-90">
-                <Save className="mr-2 h-4 w-4" /> Save date
+                <Save className="mr-2 h-4 w-4" /> {editingId ? 'Update date' : 'Save date'}
               </Button>
+              {editingId && <Button type="button" variant="outline" onClick={() => { setEditingId(null); setTitle(''); setEventDate(''); setNotes(''); }}><X className="mr-2 h-4 w-4" />Cancel</Button>}
+              </div>
             </form>
           </CardContent>
         </Card>
@@ -164,6 +194,10 @@ export default function SpecialDatesPage() {
                         </p>
                         <p className="text-xs text-muted-foreground">days</p>
                       </div>
+                      <div className="flex shrink-0 flex-col gap-1">
+                        <Button size="icon" variant="ghost" aria-label={`Edit ${date.title}`} onClick={() => editDate(date)}><Pencil className="h-4 w-4" /></Button>
+                        <Button size="icon" variant="ghost" aria-label={`Delete ${date.title}`} onClick={() => deleteDate(date.id)}><Trash2 className="h-4 w-4" /></Button>
+                      </div>
                     </CardContent>
                   </Card>
                 );
@@ -204,6 +238,10 @@ export default function SpecialDatesPage() {
                       <Badge variant="secondary" className="shrink-0 text-xs">
                         {daysAgo} days ago
                       </Badge>
+                      <div className="flex shrink-0 flex-col gap-1">
+                        <Button size="icon" variant="ghost" aria-label={`Edit ${date.title}`} onClick={() => editDate(date)}><Pencil className="h-4 w-4" /></Button>
+                        <Button size="icon" variant="ghost" aria-label={`Delete ${date.title}`} onClick={() => deleteDate(date.id)}><Trash2 className="h-4 w-4" /></Button>
+                      </div>
                     </CardContent>
                   </Card>
                 );
@@ -215,4 +253,3 @@ export default function SpecialDatesPage() {
     </AppShell>
   );
 }
-

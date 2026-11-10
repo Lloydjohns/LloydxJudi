@@ -1,5 +1,7 @@
 'use client';
 
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { AppShell } from '@/components/layout/app-shell';
 import { SectionHeading } from '@/components/layout/shared';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -8,167 +10,172 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { Heart, Calendar, Users, Music2, LogOut, Download, Trash2, Save, Plus, Music, Lock } from 'lucide-react';
-import { DEMO_COUPLE_NAME, DEMO_ANNIVERSARY_DATE, demoPlaylistTracks } from '@/lib/demo-data';
-import { format } from 'date-fns';
+import { Heart, Calendar, Users, Music2, Download, Save, Plus, Music, Lock } from 'lucide-react';
+import { DEMO_COUPLE_NAME, DEMO_ANNIVERSARY_DATE } from '@/lib/demo-data';
+
+const PROFILE_KEY = 'llodxjudi-couple-profile';
 
 export default function SettingsPage() {
+  const [coupleName, setCoupleName] = useState(DEMO_COUPLE_NAME);
+  const [anniversaryDate, setAnniversaryDate] = useState(DEMO_ANNIVERSARY_DATE);
+  const [partnerEmail, setPartnerEmail] = useState('');
+  const [profileSaved, setProfileSaved] = useState(false);
+
+  useEffect(() => {
+    const raw = localStorage.getItem(PROFILE_KEY);
+    if (!raw) return;
+    try {
+      const profile = JSON.parse(raw) as { name?: string; anniversaryDate?: string };
+      if (profile.name) setCoupleName(profile.name);
+      if (profile.anniversaryDate) setAnniversaryDate(profile.anniversaryDate);
+    } catch {
+      setCoupleName(DEMO_COUPLE_NAME);
+      setAnniversaryDate(DEMO_ANNIVERSARY_DATE);
+    }
+  }, []);
+
+  const saveProfile = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    localStorage.setItem(PROFILE_KEY, JSON.stringify({ name: coupleName.trim(), anniversaryDate }));
+    setProfileSaved(true);
+    window.setTimeout(() => setProfileSaved(false), 2000);
+  };
+
+  const invitePartner = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const subject = encodeURIComponent(`${coupleName || 'Our Story'} — join me`);
+    const body = encodeURIComponent('I would love for you to join me in our shared story.');
+    window.location.href = `mailto:${partnerEmail.trim()}?subject=${subject}&body=${body}`;
+  };
+
+  const exportStory = () => {
+    try {
+      const keys = [
+        'llodxjudi-memories',
+        'llodxjudi-letters',
+        'llodxjudi-special-dates',
+        'llodxjudi-playlist',
+        'llodxjudi-timeline-events',
+      ];
+      const story = Object.fromEntries(
+        keys.map((key) => {
+          const raw = localStorage.getItem(key);
+          return [key, raw ? JSON.parse(raw) : []];
+        })
+      );
+      const blob = new Blob([JSON.stringify({
+        couple: { name: coupleName, anniversaryDate },
+        exportedAt: new Date().toISOString(),
+        ...story,
+      }, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'our-story.json';
+      link.click();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (error) {
+      window.alert(error instanceof Error ? `Could not export our story: ${error.message}` : 'Could not export our story.');
+    }
+  };
+
   return (
     <AppShell>
       <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6">
         <SectionHeading title="Settings" subtitle="Manage your couple's world" />
 
         <div className="mt-10 space-y-6">
-          {/* Couple profile */}
           <Card className="border-primary/15 shadow-soft">
             <CardHeader>
-              <CardTitle className="font-serif-display text-2xl flex items-center gap-2">
+              <CardTitle className="flex items-center gap-2 font-serif-display text-2xl">
                 <Heart className="h-5 w-5 text-primary" />
                 Couple Profile
               </CardTitle>
               <CardDescription>Your shared display name and anniversary date.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="couple-name" className="text-sm font-medium">Display Name</Label>
-                <Input
-                  id="couple-name"
-                  defaultValue={DEMO_COUPLE_NAME}
-                  className="border-primary/20"
-                  placeholder="e.g. Lloyd & Judi"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="anniversary-date" className="text-sm font-medium flex items-center gap-1.5">
-                  <Calendar className="h-4 w-4 text-primary" />
-                  Anniversary Date
-                </Label>
-                <Input
-                  id="anniversary-date"
-                  type="date"
-                  defaultValue={DEMO_ANNIVERSARY_DATE}
-                  className="border-primary/20"
-                />
-                <p className="text-xs text-muted-foreground flex items-center gap-1">
-                  <Lock className="h-3 w-3" />
-                  Owner-only setting. Changes affect chapter calculations.
-                </p>
-              </div>
-              <Button className="bg-gradient-wine text-primary-foreground hover:opacity-90">
-                <Save className="h-4 w-4 mr-2" />
-                Save Changes
-              </Button>
+            <CardContent>
+              <form onSubmit={saveProfile} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="couple-name">Display Name</Label>
+                  <Input id="couple-name" value={coupleName} onChange={(event) => setCoupleName(event.target.value)} required className="border-primary/20" placeholder="e.g. Lloyd & Judi" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="anniversary-date" className="flex items-center gap-1.5">
+                    <Calendar className="h-4 w-4 text-primary" />
+                    Anniversary Date
+                  </Label>
+                  <Input id="anniversary-date" type="date" value={anniversaryDate} onChange={(event) => setAnniversaryDate(event.target.value)} required className="border-primary/20" />
+                  <p className="flex items-center gap-1 text-xs text-muted-foreground">
+                    <Lock className="h-3 w-3" />
+                    Saved in this browser.
+                  </p>
+                </div>
+                <Button type="submit" className="bg-gradient-wine text-primary-foreground hover:opacity-90">
+                  <Save className="mr-2 h-4 w-4" />
+                  {profileSaved ? 'Changes saved' : 'Save Changes'}
+                </Button>
+              </form>
             </CardContent>
           </Card>
 
-          {/* Members */}
           <Card className="border-primary/15 shadow-soft">
             <CardHeader>
-              <CardTitle className="font-serif-display text-2xl flex items-center gap-2">
+              <CardTitle className="flex items-center gap-2 font-serif-display text-2xl">
                 <Users className="h-5 w-5 text-primary" />
                 Members
               </CardTitle>
-              <CardDescription>Manage who is part of your couple's world.</CardDescription>
+              <CardDescription>Invite your partner to share your story.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="flex items-center justify-between rounded-lg bg-muted/40 p-3">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-wine text-primary-foreground font-semibold">
-                    L
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium">Lloyd</p>
-                    <Badge variant="secondary" className="text-xs">Owner</Badge>
-                  </div>
-                </div>
+              <div className="flex items-center gap-3 rounded-lg bg-muted/40 p-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-wine font-semibold text-primary-foreground">L</div>
+                <div><p className="text-sm font-medium">Lloyd</p><Badge variant="secondary" className="text-xs">Owner</Badge></div>
               </div>
-              <div className="flex items-center justify-between rounded-lg bg-muted/40 p-3">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent/20 text-accent font-semibold">
-                    J
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium">Judi</p>
-                    <Badge variant="outline" className="text-xs">Partner</Badge>
-                  </div>
-                </div>
+              <div className="flex items-center gap-3 rounded-lg bg-muted/40 p-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent/20 font-semibold text-accent">J</div>
+                <div><p className="text-sm font-medium">Judi</p><Badge variant="outline" className="text-xs">Partner</Badge></div>
               </div>
               <Separator />
-              <p className="text-sm text-muted-foreground">
-                Invite your partner by email. They will receive a secure invitation link.
-              </p>
-              <div className="flex gap-2">
-                <Input placeholder="partner@email.com" className="border-primary/20" />
-                <Button variant="outline" className="shrink-0">
-                  <Plus className="h-4 w-4 mr-1" />
-                  Invite
+              <p className="text-sm text-muted-foreground">This opens your email app with an invitation message ready to send.</p>
+              <form onSubmit={invitePartner} className="flex gap-2">
+                <Input type="email" required value={partnerEmail} onChange={(event) => setPartnerEmail(event.target.value)} placeholder="partner@email.com" aria-label="Partner email" className="border-primary/20" />
+                <Button type="submit" variant="outline" className="shrink-0">
+                  <Plus className="mr-1 h-4 w-4" /> Invite
                 </Button>
-              </div>
+              </form>
             </CardContent>
           </Card>
 
-          {/* Playlist management */}
           <Card className="border-primary/15 shadow-soft">
             <CardHeader>
-              <CardTitle className="font-serif-display text-2xl flex items-center gap-2">
+              <CardTitle className="flex items-center gap-2 font-serif-display text-2xl">
                 <Music2 className="h-5 w-5 text-primary" />
                 Playlist
               </CardTitle>
-              <CardDescription>
-                Manage your {demoPlaylistTracks.length} tracks. The playlist supports a maximum of 12 tracks.
-              </CardDescription>
+              <CardDescription>Add, edit, and remove songs from your playlist.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-2">
-              {demoPlaylistTracks.slice(0, 4).map((track) => (
-                <div key={track.id} className="flex items-center gap-3 rounded-lg bg-muted/30 p-2.5">
-                  <span className="text-xs font-bold text-muted-foreground w-6">
-                    {String(track.position).padStart(2, '0')}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium truncate">{track.title}</p>
-                    <p className="text-xs text-muted-foreground truncate">{track.artist}</p>
-                  </div>
-                  <Badge variant="outline" className="text-xs capitalize">{track.sourceType}</Badge>
-                </div>
-              ))}
-              <div className="pt-2">
-                <Button variant="outline" size="sm" className="w-full">
-                  <Music className="h-4 w-4 mr-2" />
-                  Manage all 12 tracks
-                </Button>
-              </div>
+            <CardContent>
+              <Button asChild variant="outline" className="w-full">
+                <Link href="/music"><Music className="mr-2 h-4 w-4" /> Manage playlist</Link>
+              </Button>
             </CardContent>
           </Card>
 
-          {/* Data & account */}
           <Card className="border-primary/15 shadow-soft">
             <CardHeader>
-              <CardTitle className="font-serif-display text-2xl">Data & Account</CardTitle>
-              <CardDescription>Export, delete, or sign out of your account.</CardDescription>
+              <CardTitle className="font-serif-display text-2xl">Our Story</CardTitle>
+              <CardDescription>Download a backup of your story data saved in this browser.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-3">
-              <Button variant="outline" className="w-full sm:w-auto">
-                <Download className="h-4 w-4 mr-2" />
+            <CardContent>
+              <Button type="button" variant="outline" onClick={exportStory} className="w-full sm:w-auto">
+                <Download className="mr-2 h-4 w-4" />
                 Export our story
               </Button>
-              <Separator />
-              <Button variant="outline" className="w-full sm:w-auto">
-                <LogOut className="h-4 w-4 mr-2" />
-                Sign out
-              </Button>
-              <Separator />
-              <Button variant="destructive" className="w-full sm:w-auto">
-                <Trash2 className="h-4 w-4 mr-2" />
-                Delete all data
-              </Button>
-              <p className="text-xs text-muted-foreground">
-                Deletion is permanent and cannot be undone. All memories, letters, and photos will be removed.
-              </p>
             </CardContent>
           </Card>
 
-          <p className="text-center text-xs text-muted-foreground pb-4">
-            Demo mode. Settings will be functional in Milestone 2 and beyond.
+          <p className="pb-4 text-center text-xs text-muted-foreground">
+            Your story data is stored locally in this browser.
           </p>
         </div>
       </div>

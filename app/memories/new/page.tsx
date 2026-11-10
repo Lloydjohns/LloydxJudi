@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { AppShell } from '@/components/layout/app-shell';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -11,16 +11,21 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { ArrowLeft, CalendarDays, ImagePlus, Link2, MapPin, Save, Tag, Video, X } from 'lucide-react';
-import { getDemoChapters, DEMO_ANNIVERSARY_DATE } from '@/lib/demo-data';
+import { demoMemories, getDemoChapters, DEMO_ANNIVERSARY_DATE } from '@/lib/demo-data';
+import type { Memory } from '@/lib/types';
+import { saveLocalList } from '@/lib/local-data';
 
 const STORAGE_KEY = 'llodxjudi-memories';
 
 export default function NewMemoryPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const editId = searchParams.get('edit');
   const chapters = getDemoChapters(new Date(DEMO_ANNIVERSARY_DATE));
   const [tags, setTags] = useState<string[]>(['Milestone']);
   const [tagValue, setTagValue] = useState('');
   const [saved, setSaved] = useState(false);
+  const [customChapterName, setCustomChapterName] = useState('');
   const [form, setForm] = useState({
     title: '',
     memoryDate: '',
@@ -30,6 +35,28 @@ export default function NewMemoryPage() {
     imagePath: '',
     videoPath: '',
   });
+
+  useEffect(() => {
+    if (!editId) return;
+    const raw = localStorage.getItem(STORAGE_KEY);
+    let memories: Memory[] = demoMemories;
+    if (raw) {
+      try { memories = JSON.parse(raw) as Memory[]; } catch { memories = demoMemories; }
+    }
+    const memory = memories.find((item) => item.id === editId);
+    if (!memory) return;
+    setForm({
+      title: memory.title,
+      memoryDate: memory.memoryDate,
+      location: memory.location ?? '',
+      chapterId: memory.chapterName ? 'custom' : memory.chapterId,
+      story: memory.story,
+      imagePath: memory.imagePath ?? '',
+      videoPath: memory.videoPath ?? '',
+    });
+    setCustomChapterName(memory.chapterName ?? '');
+    setTags(memory.tags);
+  }, [editId]);
 
   const addTag = () => {
     const nextTag = tagValue.trim();
@@ -50,10 +77,11 @@ export default function NewMemoryPage() {
 
     if (!title || !story || !memoryDate) return;
 
-    const customMemory = {
-      id: `custom-${Date.now()}`,
+    const customMemory: Memory = {
+      id: editId ?? `memory-${Date.now()}`,
       coupleId: 'demo',
-      chapterId: form.chapterId,
+      chapterId: form.chapterId === 'custom' ? `custom-${customChapterName.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-')}` : form.chapterId,
+      chapterName: form.chapterId === 'custom' ? customChapterName.trim() : undefined,
       title,
       memoryDate,
       story,
@@ -66,9 +94,15 @@ export default function NewMemoryPage() {
       updatedAt: new Date().toISOString(),
     };
 
-    const current = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '[]');
-    const next = [customMemory, ...current];
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    let current: Memory[] = demoMemories;
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      try { current = JSON.parse(raw) as Memory[]; } catch { current = demoMemories; }
+    }
+    const next = editId
+      ? current.map((memory) => memory.id === editId ? { ...customMemory, createdAt: memory.createdAt } : memory)
+      : [customMemory, ...current];
+    saveLocalList(STORAGE_KEY, next);
     setSaved(true);
     window.setTimeout(() => router.push('/gallery'), 700);
   };
@@ -80,7 +114,7 @@ export default function NewMemoryPage() {
           <Button asChild variant="ghost" size="sm" className="mb-5"><Link href="/gallery"><ArrowLeft className="mr-2 h-4 w-4" /> Back to gallery</Link></Button>
           <div className="mb-8">
             <p className="text-xs font-semibold uppercase tracking-[0.28em] text-primary">Add to our story</p>
-            <h1 className="mt-2 font-script text-5xl text-wine sm:text-7xl">Add a New Memory</h1>
+            <h1 className="mt-2 font-script text-5xl text-wine sm:text-7xl">{editId ? 'Edit Memory' : 'Add a New Memory'}</h1>
             <p className="mt-2 text-sm text-muted-foreground">Add a link, date, and story. We keep it light and romantic.</p>
           </div>
 
@@ -126,10 +160,10 @@ export default function NewMemoryPage() {
                   <div className="space-y-2"><Label htmlFor="date" className="flex items-center gap-1.5"><CalendarDays className="h-4 w-4 text-primary" /> Date <span className="text-primary">*</span></Label><Input id="date" type="date" value={form.memoryDate} onChange={(event) => handleChange('memoryDate', event.target.value)} required className="border-primary/20 bg-white/70" /></div>
                   <div className="space-y-2"><Label htmlFor="location" className="flex items-center gap-1.5"><MapPin className="h-4 w-4 text-primary" /> Location</Label><Input id="location" value={form.location} onChange={(event) => handleChange('location', event.target.value)} placeholder="e.g. Bagio City" className="border-primary/20 bg-white/70" /></div>
                 </div>
-                <div className="space-y-2"><Label htmlFor="chapter">Chapter</Label><select id="chapter" value={form.chapterId} onChange={(event) => handleChange('chapterId', event.target.value)} className="flex h-10 w-full rounded-md border border-primary/20 bg-white/70 px-3 text-sm text-foreground outline-none focus:ring-2 focus:ring-primary/30">{chapters.map((chapter) => <option key={chapter.id} value={chapter.id}>Month {chapter.monthNumber} · {chapter.title}</option>)}</select></div>
+                <div className="space-y-2"><Label htmlFor="chapter">Chapter</Label><select id="chapter" value={form.chapterId} onChange={(event) => handleChange('chapterId', event.target.value)} className="flex h-10 w-full rounded-md border border-primary/20 bg-white/70 px-3 text-sm text-foreground outline-none focus:ring-2 focus:ring-primary/30">{chapters.map((chapter) => <option key={chapter.id} value={chapter.id}>Month {chapter.monthNumber} · {chapter.title}</option>)}<option value="custom">Type a chapter name…</option></select>{form.chapterId === 'custom' && <Input value={customChapterName} onChange={(event) => setCustomChapterName(event.target.value)} placeholder="Type your chapter name" required className="border-primary/20 bg-white/70" />}</div>
                 <div className="space-y-2"><Label htmlFor="story">Story <span className="text-primary">*</span></Label><Textarea id="story" value={form.story} onChange={(event) => handleChange('story', event.target.value)} required placeholder="Tell the story behind this memory..." className="min-h-32 border-primary/20 bg-white/70" /></div>
                 <div className="space-y-2"><Label className="flex items-center gap-1.5"><Tag className="h-4 w-4 text-primary" /> Tags</Label><div className="flex flex-wrap gap-2">{tags.map((tag) => <Badge key={tag} variant="secondary" className="gap-1 capitalize">{tag}<button type="button" onClick={() => setTags(tags.filter((item) => item !== tag))} aria-label={`Remove ${tag}`}><X className="h-3 w-3" /></button></Badge>)}</div><div className="flex gap-2"><Input value={tagValue} onChange={(event) => setTagValue(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); addTag(); } }} placeholder="Add a tag" className="border-primary/20 bg-white/70" /><Button type="button" variant="outline" onClick={addTag}>Add</Button></div></div>
-                <Button type="submit" className="w-full bg-gradient-wine text-white hover:opacity-90"><Save className="mr-2 h-4 w-4" />{saved ? 'Saved locally...' : 'Save Memory ♡'}</Button>
+                <Button type="submit" className="w-full bg-gradient-wine text-white hover:opacity-90"><Save className="mr-2 h-4 w-4" />{saved ? 'Saved locally...' : editId ? 'Update Memory ♡' : 'Save Memory ♡'}</Button>
               </CardContent>
             </Card>
           </form>

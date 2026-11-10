@@ -5,8 +5,11 @@ import { AppShell } from '@/components/layout/app-shell';
 import { SectionHeading, EmptyState } from '@/components/layout/shared';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
-import { Lock, BookOpen, Calendar, ArrowRight, MapPin } from 'lucide-react';
+import { Lock, BookOpen, Calendar, ArrowRight, MapPin, Pencil, Plus, Save, Trash2, X } from 'lucide-react';
 import { demoMemories, DEMO_ANNIVERSARY_DATE } from '@/lib/demo-data';
 import { getDemoChapters } from '@/lib/demo-data';
 import {
@@ -17,12 +20,75 @@ import {
   formatChapterDateRange,
 } from '@/lib/date-utils';
 import { format } from 'date-fns';
+import { useEffect, useState } from 'react';
+import type { TimelineEvent } from '@/lib/types';
+import { loadLocalList, makeLocalId, saveLocalList } from '@/lib/local-data';
+
+const STORAGE_KEY = 'llodxjudi-timeline-events';
 
 export default function TimelinePage() {
   const anniversaryDate = new Date(DEMO_ANNIVERSARY_DATE);
   const now = new Date();
   const totalChapters = getTotalChapters(anniversaryDate, now);
   const chapters = getDemoChapters(anniversaryDate);
+  const [events, setEvents] = useState<TimelineEvent[]>([]);
+  const [memories, setMemories] = useState(demoMemories);
+  const [title, setTitle] = useState('');
+  const [eventDate, setEventDate] = useState('');
+  const [story, setStory] = useState('');
+  const [editingId, setEditingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    setEvents(loadLocalList<TimelineEvent>(STORAGE_KEY, []));
+    setMemories(loadLocalList('llodxjudi-memories', demoMemories));
+  }, []);
+
+  const resetForm = () => {
+    setEditingId(null);
+    setTitle('');
+    setEventDate('');
+    setStory('');
+  };
+
+  const saveEvent = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const trimmedTitle = title.trim();
+    const trimmedStory = story.trim();
+    if (!trimmedTitle || !eventDate || !trimmedStory) return;
+    const existing = events.find((item) => item.id === editingId);
+    const entry: TimelineEvent = {
+      id: existing?.id ?? makeLocalId('timeline'),
+      title: trimmedTitle,
+      eventDate,
+      story: trimmedStory,
+      createdAt: existing?.createdAt ?? new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    const next = existing
+      ? events.map((item) => item.id === existing.id ? entry : item)
+      : [...events, entry];
+    saveLocalList(STORAGE_KEY, next);
+    setEvents(next);
+    resetForm();
+  };
+
+  const editEvent = (entry: TimelineEvent) => {
+    setEditingId(entry.id);
+    setTitle(entry.title);
+    setEventDate(entry.eventDate);
+    setStory(entry.story);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const deleteEvent = (entry: TimelineEvent) => {
+    if (!window.confirm(`Delete “${entry.title}” from the timeline?`)) return;
+    const next = events.filter((item) => item.id !== entry.id);
+    saveLocalList(STORAGE_KEY, next);
+    setEvents(next);
+    if (editingId === entry.id) resetForm();
+  };
+
+  const sortedEvents = [...events].sort((a, b) => a.eventDate.localeCompare(b.eventDate));
 
   return (
     <AppShell>
@@ -33,13 +99,62 @@ export default function TimelinePage() {
           subtitle="A month at a time, a lifetime of memories."
         />
 
+        <Card className="mt-8 border-primary/15 shadow-soft">
+          <CardContent className="p-5 sm:p-6">
+            <h2 className="font-serif-display text-xl font-semibold">{editingId ? 'Edit timeline moment' : 'Add a timeline moment'}</h2>
+            <form onSubmit={saveEvent} className="mt-4 grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="timeline-title">Title</Label>
+                <Input id="timeline-title" value={title} onChange={(event) => setTitle(event.target.value)} required placeholder="A moment to remember" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="timeline-date">Date</Label>
+                <Input id="timeline-date" type="date" value={eventDate} onChange={(event) => setEventDate(event.target.value)} required />
+              </div>
+              <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="timeline-story">Story</Label>
+                <Textarea id="timeline-story" value={story} onChange={(event) => setStory(event.target.value)} required placeholder="Write what made this moment special..." />
+              </div>
+              <div className="flex gap-2 sm:col-span-2">
+                <Button type="submit" className="bg-gradient-wine text-white hover:opacity-90">
+                  {editingId ? <Save className="mr-2 h-4 w-4" /> : <Plus className="mr-2 h-4 w-4" />}
+                  {editingId ? 'Update moment' : 'Add moment'}
+                </Button>
+                {editingId && <Button type="button" variant="outline" onClick={resetForm}><X className="mr-2 h-4 w-4" />Cancel</Button>}
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+
+        {sortedEvents.length > 0 && (
+          <section className="mt-8 space-y-3" aria-label="Your timeline moments">
+            <h2 className="font-serif-display text-2xl font-semibold">Our Moments</h2>
+            {sortedEvents.map((entry) => (
+              <Card key={entry.id} className="border-primary/15 shadow-soft">
+                <CardContent className="flex items-start gap-4 p-4 sm:p-5">
+                  <Calendar className="mt-1 h-5 w-5 shrink-0 text-primary" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs text-muted-foreground">{format(new Date(entry.eventDate), 'MMMM d, yyyy')}</p>
+                    <h3 className="font-serif-display text-lg font-semibold">{entry.title}</h3>
+                    <p className="mt-1 whitespace-pre-line text-sm text-muted-foreground">{entry.story}</p>
+                  </div>
+                  <div className="flex shrink-0 gap-1">
+                    <Button type="button" size="icon" variant="ghost" aria-label={`Edit ${entry.title}`} onClick={() => editEvent(entry)}><Pencil className="h-4 w-4" /></Button>
+                    <Button type="button" size="icon" variant="ghost" aria-label={`Delete ${entry.title}`} onClick={() => deleteEvent(entry)}><Trash2 className="h-4 w-4" /></Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </section>
+        )}
+
         <div className="mt-10 mb-8 flex items-center justify-center gap-4 text-sm text-muted-foreground">
           <span className="flex items-center gap-1.5">
             <BookOpen className="h-4 w-4 text-primary" />
             {totalChapters} chapters unlocked
           </span>
           <span className="text-border">|</span>
-          <span>{demoMemories.length} memories captured</span>
+          <span>          {memories.length} memories captured</span>
         </div>
 
         {/* Timeline line */}
@@ -49,7 +164,7 @@ export default function TimelinePage() {
           <div className="space-y-8">
             {chapters.map((chapter, index) => {
               const unlocked = isChapterUnlocked(anniversaryDate, chapter.monthNumber, now);
-              const memories = demoMemories.filter((m) => m.chapterId === chapter.id);
+              const chapterMemories = memories.filter((m) => m.chapterId === chapter.id);
               const isLeft = index % 2 === 0;
               const dateRange = formatChapterDateRange(anniversaryDate, chapter.monthNumber);
 
@@ -118,7 +233,7 @@ export default function TimelinePage() {
                             </p>
                             <div className="flex items-center justify-between pt-1">
                               <span className="text-xs text-muted-foreground">
-                                {memories.length} {memories.length === 1 ? 'memory' : 'memories'}
+                                {chapterMemories.length} {chapterMemories.length === 1 ? 'memory' : 'memories'}
                               </span>
                               <span className="text-xs text-primary flex items-center gap-1 font-medium">
                                 Read chapter <ArrowRight className="h-3 w-3" />

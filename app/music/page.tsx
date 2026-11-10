@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Music2, Play, Pause, ExternalLink, Info, Disc3, Heart, Headphones } from 'lucide-react';
+import { Music2, Play, Pause, ExternalLink, Info, Disc3, Heart, Headphones, Pencil, Plus, Save, Trash2, X } from 'lucide-react';
 import { useMusicPlayer } from '@/components/music/music-player-provider';
 import { cn } from '@/lib/utils';
 import { isSupportedYouTubeUrl } from '@/lib/music-utils';
@@ -57,10 +57,48 @@ function FloatingHearts() {
 }
 
 export default function MusicPage() {
-  const { tracks, currentTrackIndex, selectTrack, isPlaying, togglePlay, currentTrack, updateTrackSource } = useMusicPlayer();
+  const { tracks, currentTrackIndex, selectTrack, isPlaying, togglePlay, currentTrack, updateTrackSource, addTrack, updateTrack, deleteTrack } = useMusicPlayer();
   const [sourceValue, setSourceValue] = useState('');
   const [sourceMessage, setSourceMessage] = useState<string | null>(null);
   const [scrollY, setScrollY] = useState(0);
+  const [editingTrackIndex, setEditingTrackIndex] = useState<number | null>(null);
+  const [trackForm, setTrackForm] = useState({ title: '', artist: '', sourceType: 'youtube' as TrackSourceType, sourceUrl: '' });
+  const [trackMessage, setTrackMessage] = useState<string | null>(null);
+
+  const resetTrackForm = () => {
+    setEditingTrackIndex(null);
+    setTrackForm({ title: '', artist: '', sourceType: 'youtube', sourceUrl: '' });
+  };
+
+  const saveTrack = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const track = {
+      title: trackForm.title.trim(),
+      artist: trackForm.artist.trim(),
+      sourceType: trackForm.sourceType,
+      sourceUrl: trackForm.sourceUrl.trim(),
+    };
+    if (!track.title || !track.artist || !track.sourceUrl) {
+      setTrackMessage('Add a title, artist, and source URL.');
+      return;
+    }
+    if (editingTrackIndex === null) addTrack(track);
+    else updateTrack(editingTrackIndex, track);
+    resetTrackForm();
+    setTrackMessage(editingTrackIndex === null ? 'Song added to your playlist.' : 'Song updated.');
+  };
+
+  const editTrack = (index: number) => {
+    const track = tracks[index];
+    setEditingTrackIndex(index);
+    setTrackForm({
+      title: track.title,
+      artist: track.artist,
+      sourceType: track.sourceType,
+      sourceUrl: track.sourceUrl,
+    });
+    setTrackMessage(null);
+  };
 
   useEffect(() => {
     const onScroll = () => setScrollY(window.scrollY);
@@ -257,6 +295,47 @@ export default function MusicPage() {
           </div>
         </section>
 
+        <section className="relative z-10 px-4 pt-8 sm:px-6">
+          <div className="mx-auto max-w-4xl">
+            <Card className="border-white/10 bg-white/[0.06] text-white shadow-none">
+              <CardContent className="p-5 sm:p-6">
+                <h3 className="font-serif-display text-xl font-semibold">{editingTrackIndex === null ? 'Add a song' : 'Edit song'}</h3>
+                <form onSubmit={saveTrack} className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <Label htmlFor="track-title" className="text-white/75">Title</Label>
+                    <Input id="track-title" required value={trackForm.title} onChange={(event) => setTrackForm({ ...trackForm, title: event.target.value })} className="mt-1 border-white/15 bg-black/20 text-white" placeholder="Song title" />
+                  </div>
+                  <div>
+                    <Label htmlFor="track-artist" className="text-white/75">Artist</Label>
+                    <Input id="track-artist" required value={trackForm.artist} onChange={(event) => setTrackForm({ ...trackForm, artist: event.target.value })} className="mt-1 border-white/15 bg-black/20 text-white" placeholder="Artist name" />
+                  </div>
+                  <div>
+                    <Label htmlFor="track-source-type" className="text-white/75">Source type</Label>
+                    <select id="track-source-type" value={trackForm.sourceType} onChange={(event) => setTrackForm({ ...trackForm, sourceType: event.target.value as TrackSourceType })} className="mt-1 flex h-10 w-full rounded-md border border-white/15 bg-[#1a0f1f] px-3 text-sm text-white">
+                      <option value="youtube">YouTube</option>
+                      <option value="spotify">Spotify</option>
+                      <option value="soundcloud">SoundCloud</option>
+                      <option value="file">Audio file URL</option>
+                    </select>
+                  </div>
+                  <div>
+                    <Label htmlFor="track-source-url" className="text-white/75">Source URL</Label>
+                    <Input id="track-source-url" type="url" required value={trackForm.sourceUrl} onChange={(event) => setTrackForm({ ...trackForm, sourceUrl: event.target.value })} className="mt-1 border-white/15 bg-black/20 text-white" placeholder="https://..." />
+                  </div>
+                  <div className="flex flex-wrap gap-2 sm:col-span-2">
+                    <Button type="submit" className="bg-[#e77d9c] text-white hover:bg-[#ef91ad]">
+                      {editingTrackIndex === null ? <Plus className="mr-2 h-4 w-4" /> : <Save className="mr-2 h-4 w-4" />}
+                      {editingTrackIndex === null ? 'Add song' : 'Save changes'}
+                    </Button>
+                    {editingTrackIndex !== null && <Button type="button" variant="outline" onClick={resetTrackForm} className="border-white/20 text-white hover:bg-white/10"><X className="mr-2 h-4 w-4" />Cancel</Button>}
+                  </div>
+                </form>
+                {trackMessage && <p className="mt-3 text-xs text-[#f6b2c5]" role="status">{trackMessage}</p>}
+              </CardContent>
+            </Card>
+          </div>
+        </section>
+
         {/* Track list */}
         <section className="relative z-10 px-4 py-10 sm:px-6">
           <div className="mx-auto max-w-4xl">
@@ -372,6 +451,23 @@ export default function MusicPage() {
                           <ExternalLink className="h-4 w-4" />
                         </a>
                       )}
+                      <Button type="button" size="icon" variant="ghost" className="h-8 w-8 text-white/60 hover:text-white" aria-label={`Edit ${track.title}`} onClick={() => editTrack(index)}>
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        className="h-8 w-8 text-white/60 hover:text-red-300"
+                        aria-label={`Delete ${track.title}`}
+                        onClick={() => {
+                          if (!window.confirm(`Delete “${track.title}” from the playlist?`)) return;
+                          deleteTrack(index);
+                          if (editingTrackIndex === index) resetTrackForm();
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     </div>
                   </div>
                 );

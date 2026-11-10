@@ -3,8 +3,25 @@
 import React, { createContext, useContext, useState, useRef, useCallback, useEffect, ReactNode } from 'react';
 import type { PlaylistTrack } from '@/lib/types';
 import { demoPlaylistTracks } from '@/lib/demo-data';
+import { makeLocalId, saveLocalList } from '@/lib/local-data';
+
+const STORAGE_KEY = 'llodxjudi-playlist';
 
 export type RepeatMode = 'off' | 'one' | 'all';
+
+function isPlaylistTrack(value: unknown): value is PlaylistTrack {
+  if (!value || typeof value !== 'object') return false;
+  const track = value as Record<string, unknown>;
+  return typeof track.id === 'string'
+    && typeof track.coupleId === 'string'
+    && typeof track.position === 'number'
+    && typeof track.title === 'string'
+    && typeof track.artist === 'string'
+    && (track.sourceType === 'file' || track.sourceType === 'spotify' || track.sourceType === 'youtube' || track.sourceType === 'soundcloud')
+    && typeof track.sourceUrl === 'string'
+    && (track.coverImage === null || typeof track.coverImage === 'string')
+    && typeof track.createdAt === 'string';
+}
 
 interface MusicPlayerState {
   tracks: PlaylistTrack[];
@@ -29,6 +46,9 @@ interface MusicPlayerContextValue extends MusicPlayerState {
   toggleShuffle: () => void;
   cycleRepeat: () => void;
   updateTrackSource: (index: number, sourceUrl: string) => void;
+  addTrack: (track: Pick<PlaylistTrack, 'title' | 'artist' | 'sourceType' | 'sourceUrl'>) => void;
+  updateTrack: (index: number, track: Pick<PlaylistTrack, 'title' | 'artist' | 'sourceType' | 'sourceUrl'>) => void;
+  deleteTrack: (index: number) => void;
   currentTrack: PlaylistTrack | null;
 }
 
@@ -50,8 +70,30 @@ export function MusicPlayerProvider({ children }: { children: ReactNode }) {
   const [repeatMode, setRepeatMode] = useState<RepeatMode>('off');
   const [audioError, setAudioError] = useState<string | null>(null);
   const shuffleOrderRef = useRef<number[]>([]);
+  const [hasLoadedTracks, setHasLoadedTracks] = useState(false);
 
   const currentTrack = tracks[currentTrackIndex] || null;
+
+  useEffect(() => {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (raw !== null) {
+      try {
+        const savedTracks: unknown = JSON.parse(raw);
+        if (Array.isArray(savedTracks) && savedTracks.every(isPlaylistTrack)) {
+          setTracks(savedTracks);
+        } else {
+          setAudioError('Saved playlist data is invalid.');
+        }
+      } catch {
+        setAudioError('Saved playlist data could not be read.');
+      }
+    }
+    setHasLoadedTracks(true);
+  }, []);
+
+  useEffect(() => {
+    if (hasLoadedTracks) saveLocalList(STORAGE_KEY, tracks);
+  }, [tracks, hasLoadedTracks]);
 
   const getNextIndex = useCallback(
     (direction: 1 | -1) => {
@@ -61,7 +103,7 @@ export function MusicPlayerProvider({ children }: { children: ReactNode }) {
         const nextPos = (currentPos + direction + order.length) % order.length;
         return order[nextPos];
       }
-      return (currentTrackIndex + direction + tracks.length) % tracks.length;
+      return tracks.length ? (currentTrackIndex + direction + tracks.length) % tracks.length : 0;
     },
     [isShuffled, tracks.length, currentTrackIndex]
   );
@@ -140,6 +182,35 @@ export function MusicPlayerProvider({ children }: { children: ReactNode }) {
     setAudioError(null);
   }, []);
 
+  const addTrack = useCallback((track: Pick<PlaylistTrack, 'title' | 'artist' | 'sourceType' | 'sourceUrl'>) => {
+    setTracks((currentTracks) => [...currentTracks, {
+      ...track,
+      id: makeLocalId('track'),
+      coupleId: 'demo',
+      position: currentTracks.length + 1,
+      coverImage: null,
+      createdAt: new Date().toISOString(),
+    }]);
+  }, []);
+
+  const updateTrack = useCallback((index: number, track: Pick<PlaylistTrack, 'title' | 'artist' | 'sourceType' | 'sourceUrl'>) => {
+    setTracks((currentTracks) => currentTracks.map((item, itemIndex) => (
+      itemIndex === index ? { ...item, ...track } : item
+    )));
+  }, []);
+
+  const deleteTrack = useCallback((index: number) => {
+    setTracks((currentTracks) => currentTracks
+      .filter((_, itemIndex) => itemIndex !== index)
+      .map((track, itemIndex) => ({ ...track, position: itemIndex + 1 })));
+    setCurrentTrackIndex((currentIndex) => {
+      if (index < currentIndex) return currentIndex - 1;
+      if (index === currentIndex) return Math.max(0, currentIndex - 1);
+      return currentIndex;
+    });
+    setIsPlaying(false);
+  }, []);
+
   useEffect(() => {
     if (!isPlaying) return;
     if (!currentTrack) return;
@@ -169,6 +240,9 @@ export function MusicPlayerProvider({ children }: { children: ReactNode }) {
     toggleShuffle,
     cycleRepeat,
     updateTrackSource,
+    addTrack,
+    updateTrack,
+    deleteTrack,
     currentTrack,
   };
 

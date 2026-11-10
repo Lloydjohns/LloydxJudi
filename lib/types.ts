@@ -22,6 +22,7 @@ export interface Memory {
   id: string;
   coupleId: string;
   chapterId: string;
+  chapterName?: string;
   title: string;
   memoryDate: string;
   story: string;
@@ -53,6 +54,15 @@ export interface SpecialDate {
   notes: string | null;
   createdBy: string;
   createdAt: string;
+}
+
+export interface TimelineEvent {
+  id: string;
+  title: string;
+  eventDate: string;
+  story: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export type TrackSourceType = 'file' | 'spotify' | 'youtube' | 'soundcloud';
