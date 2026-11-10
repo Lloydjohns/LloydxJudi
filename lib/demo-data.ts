@@ -2,7 +2,7 @@ import type { Memory, Chapter, SpecialDate, PlaylistTrack } from './types';
 import { getChapterTitle } from './date-utils';
 
 export const DEMO_ANNIVERSARY_DATE = '2025-11-23';
-export const DEMO_COUPLE_NAME = 'Lloyd & Judi';
+export const DEMO_COUPLE_NAME = 'Bebi';
 
 export const demoMemories: Memory[] = [
   {
@@ -14,7 +14,7 @@ export const demoMemories: Memory[] = [
     story:
       'It was a cold February evening when our paths crossed for the first time. Neither of us knew that this single moment would change everything. You smiled at me from across the room, and I felt like the whole world slowed down just for us.',
     imagePath:
-      'https://images.pexels.com/photos/1024963/pexels-photo-1024963.jpeg?auto=compress&cs=tinysrgb&h=650&w=940',
+      'https://ik.imagekit.io/xui68oltcf/Bebi/Messenger_creation_DA10D127-4CD2-48D6-BDF1-6DA20BFEEAAC.jpeg?updatedAt=1794319102789',
     location: 'Downtown Cafe',
     tags: ['milestone', 'first-date'],
     createdBy: 'demo',
@@ -30,7 +30,7 @@ export const demoMemories: Memory[] = [
     story:
       'We walked along the beach, talking for hours about everything and nothing. The sunset painted the sky in shades of pink and gold, and I remember thinking I never wanted this moment to end.',
     imagePath:
-      'https://images.pexels.com/photos/17929227/pexels-photo-17929227.jpeg?auto=compress&cs=tinysrgb&h=650&w=940',
+      'https://ik.imagekit.io/xui68oltcf/Bebi/Messenger_creation_DA10D127-4CD2-48D6-BDF1-6DA20BFEEAAC.jpeg?updatedAt=1794319102789',
     location: 'Sunset Beach',
     tags: ['travel', 'milestone'],
     createdBy: 'demo',
@@ -46,7 +46,7 @@ export const demoMemories: Memory[] = [
     story:
       'You surprised me with a candlelit dinner at home. You had cooked my favorite meal, set the table with flowers you picked yourself, and played our song on the speaker. I fell in love with you all over again that night.',
     imagePath:
-      'https://images.pexels.com/photos/6288706/pexels-photo-6288706.jpeg?auto=compress&cs=tinysrgb&h=650&w=940',
+      'https://ik.imagekit.io/xui68oltcf/Bebi/Messenger_creation_DA10D127-4CD2-48D6-BDF1-6DA20BFEEAAC.jpeg?updatedAt=1794319102789',
     location: 'Home',
     tags: ['milestone', 'funny'],
     createdBy: 'demo',
@@ -62,7 +62,7 @@ export const demoMemories: Memory[] = [
     story:
       'We packed our bags and explored the city for the first time as a couple. Every corner held a new adventure, every street a new memory. You navigated us through winding alleys and hidden cafes, and I followed happily, knowing anywhere with you was home.',
     imagePath:
-      'https://images.pexels.com/photos/7968592/pexels-photo-7968592.jpeg?auto=compress&cs=tinysrgb&h=650&w=940',
+      'https://ik.imagekit.io/xui68oltcf/Bebi/Messenger_creation_DA10D127-4CD2-48D6-BDF1-6DA20BFEEAAC.jpeg?updatedAt=1794319102789',
     location: 'Old Town',
     tags: ['travel', 'milestone'],
     createdBy: 'demo',
@@ -78,7 +78,7 @@ export const demoMemories: Memory[] = [
     story:
       'We hiked to the top of the mountain together. You held my hand the entire way up, never once letting me feel like I could not make it. When we reached the summit and looked out at the valley below, I knew there was no one else I would rather face the world with.',
     imagePath:
-      'https://images.pexels.com/photos/4763005/pexels-photo-4763005.jpeg?auto=compress&cs=tinysrgb&h=650&w=940',
+      'https://ik.imagekit.io/xui68oltcf/Bebi/Messenger_creation_DA10D127-4CD2-48D6-BDF1-6DA20BFEEAAC.jpeg?updatedAt=1794319102789',
     location: 'Blue Ridge Mountains',
     tags: ['travel', 'milestone'],
     createdBy: 'demo',
@@ -94,7 +94,7 @@ export const demoMemories: Memory[] = [
     story:
       'You came home with a bouquet of pink flowers for no reason at all. When I asked what the occasion was, you simply said, "Just because it is Tuesday, and I love you." It is the small, unexpected gestures that make me fall for you more each day.',
     imagePath:
-      'https://images.pexels.com/photos/39219356/pexels-photo-39219356.jpeg?auto=compress&cs=tinysrgb&h=650&w=940',
+      'https://ik.imagekit.io/xui68oltcf/Bebi/Messenger_creation_DA10D127-4CD2-48D6-BDF1-6DA20BFEEAAC.jpeg?updatedAt=1794319102789',
     location: 'Home',
     tags: ['milestone'],
     createdBy: 'demo',
@@ -110,7 +110,7 @@ export const demoMemories: Memory[] = [
     story:
       'We got caught in a sudden downpour on our way to the restaurant. Instead of running for cover, you started dancing in the rain, pulling me in, spinning me around. We were soaked to the bone, laughing so hard we could barely breathe. It was the best dinner we never had.',
     imagePath:
-      'https://images.pexels.com/photos/4778607/pexels-photo-4778607.jpeg?auto=compress&cs=tinysrgb&h=650&w=940',
+      'https://ik.imagekit.io/xui68oltcf/Bebi/Messenger_creation_DA10D127-4CD2-48D6-BDF1-6DA20BFEEAAC.jpeg?updatedAt=1794319102789',
     location: 'City Center',
     tags: ['funny'],
     createdBy: 'demo',
@@ -126,7 +126,7 @@ export const demoMemories: Memory[] = [
     story:
       'We found a quiet spot on the hill overlooking the city. As the sun dipped below the horizon, you pulled me close and whispered the most beautiful words I have ever heard. The sky blazed in shades of rose and amber, as if the universe itself was celebrating us.',
     imagePath:
-      'https://images.pexels.com/photos/20339544/pexels-photo-20339544.jpeg?auto=compress&cs=tinysrgb&h=650&w=940',
+      'https://ik.imagekit.io/xui68oltcf/Bebi/Messenger_creation_DA10D127-4CD2-48D6-BDF1-6DA20BFEEAAC.jpeg?updatedAt=1794319102789',
     location: 'Sunset Hill',
     tags: ['milestone', 'travel'],
     createdBy: 'demo',
@@ -142,7 +142,7 @@ export const demoMemories: Memory[] = [
     story:
       'A quiet afternoon at the beach, just the two of us. No grand plans, no special occasion, just the warmth of your hand in mine and the sound of the waves. These are the moments I treasure the most, the ones where nothing happens and everything matters.',
     imagePath:
-      'https://images.pexels.com/photos/7233077/pexels-photo-7233077.jpeg?auto=compress&cs=tinysrgb&h=650&w=940',
+      'https://ik.imagekit.io/xui68oltcf/Bebi/Messenger_creation_DA10D127-4CD2-48D6-BDF1-6DA20BFEEAAC.jpeg?updatedAt=1794319102789',
     location: 'Crescent Bay',
     tags: ['milestone'],
     createdBy: 'demo',
@@ -158,7 +158,7 @@ export const demoMemories: Memory[] = [
     story:
       'We wandered through the city at night, taking in the lights, the sounds, the energy. You pulled me into a photo booth and we made the silliest faces. Those four tiny strips of paper now sit on my nightstand, a reminder of the happiest version of myself.',
     imagePath:
-      'https://images.pexels.com/photos/7968964/pexels-photo-7968964.jpeg?auto=compress&cs=tinysrgb&h=650&w=940',
+      'https://ik.imagekit.io/xui68oltcf/Bebi/Messenger_creation_DA10D127-4CD2-48D6-BDF1-6DA20BFEEAAC.jpeg?updatedAt=1794319102789',
     location: 'Downtown',
     tags: ['travel', 'funny'],
     createdBy: 'demo',

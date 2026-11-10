@@ -1,4 +1,4 @@
-import { differenceInDays, differenceInMonths, addMonths, format, isAfter, parseISO } from 'date-fns';
+import { differenceInCalendarDays, differenceInMonths, addMonths, format, isAfter, parseISO } from 'date-fns';
 
 export function getMonthsTogether(anniversaryDate: Date, referenceDate: Date = new Date()): number {
   if (isAfter(anniversaryDate, referenceDate)) return 0;
@@ -7,31 +7,23 @@ export function getMonthsTogether(anniversaryDate: Date, referenceDate: Date = n
 
 export function getDaysTogether(anniversaryDate: Date, referenceDate: Date = new Date()): number {
   if (isAfter(anniversaryDate, referenceDate)) return 0;
-  return differenceInDays(referenceDate, anniversaryDate);
+  return differenceInCalendarDays(referenceDate, anniversaryDate);
 }
 
 export function getNextAnniversary(anniversaryDate: Date, referenceDate: Date = new Date()): Date {
-  const ref = referenceDate;
-  let next = new Date(anniversaryDate.getFullYear(), ref.getMonth(), anniversaryDate.getDate());
+  const month = anniversaryDate.getMonth();
+  const day = anniversaryDate.getDate();
+  const makeAnniversary = (year: number) =>
+    new Date(year, month, Math.min(day, new Date(year, month + 1, 0).getDate()));
 
-  if (anniversaryDate.getDate() > 28) {
-    const testMonth = ref.getMonth();
-    const testDate = new Date(anniversaryDate.getFullYear(), testMonth + 1, 0);
-    if (testDate.getDate() < anniversaryDate.getDate()) {
-      next = testDate;
-    }
-  }
-
-  if (!isAfter(next, ref)) {
-    next = addMonths(next, 1);
-  }
-
-  return next;
+  const thisYear = makeAnniversary(referenceDate.getFullYear());
+  if (differenceInCalendarDays(thisYear, referenceDate) >= 0) return thisYear;
+  return makeAnniversary(referenceDate.getFullYear() + 1);
 }
 
 export function getDaysUntilNextAnniversary(anniversaryDate: Date, referenceDate: Date = new Date()): number {
   const next = getNextAnniversary(anniversaryDate, referenceDate);
-  return differenceInDays(next, referenceDate);
+  return differenceInCalendarDays(next, referenceDate);
 }
 
 export function getChapterStartDate(anniversaryDate: Date, monthNumber: number): Date {

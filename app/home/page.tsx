@@ -22,12 +22,13 @@ import { demoMemories, demoSpecialDates, DEMO_COUPLE_NAME, DEMO_ANNIVERSARY_DATE
 import {
   getDaysTogether,
   getDaysUntilNextAnniversary,
-  getNextAnniversary,
   getMonthsTogether,
   getTotalChapters,
   getChapterTitle,
 } from '@/lib/date-utils';
 import { format } from 'date-fns';
+
+export const dynamic = 'force-dynamic';
 
 export default function HomePage() {
   const anniversaryDate = new Date(DEMO_ANNIVERSARY_DATE);
@@ -35,7 +36,6 @@ export default function HomePage() {
   const daysTogether = getDaysTogether(anniversaryDate, now);
   const monthsTogether = getMonthsTogether(anniversaryDate, now);
   const daysUntilAnniversary = getDaysUntilNextAnniversary(anniversaryDate, now);
-  const nextAnniversary = getNextAnniversary(anniversaryDate, now);
   const totalChapters = getTotalChapters(anniversaryDate, now);
   const featuredMemory = demoMemories[0];
   const latestMemories = [...demoMemories].sort(
@@ -116,11 +116,11 @@ export default function HomePage() {
                 <div className="mt-3 space-y-3">
                   <div className="flex items-center justify-between rounded-xl bg-white/70 px-3 py-2">
                     <span className="text-sm font-medium text-wine">Lloyd</span>
-                    <span className="text-sm text-muted-foreground">July 22, 1999</span>
+                    <span className="text-sm text-muted-foreground">April 21</span>
                   </div>
                   <div className="flex items-center justify-between rounded-xl bg-white/70 px-3 py-2">
                     <span className="text-sm font-medium text-wine">Judi</span>
-                    <span className="text-sm text-muted-foreground">April 21, 2003</span>
+                    <span className="text-sm text-muted-foreground">July 22</span>
                   </div>
                 </div>
               </CardContent>

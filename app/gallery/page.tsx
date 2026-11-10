@@ -240,7 +240,7 @@ export default function GalleryPage() {
           <div className="relative aspect-[16/9] w-full bg-black">
             <video
               className="h-full w-full object-cover"
-              src="https://www.w3schools.com/html/mov_bbb.mp4"
+              src="https://ik.imagekit.io/xui68oltcf/Bebi/8293f6ee2e954f0d94b2237d90416d57.mov/ik-video.mp4?updatedAt=1794319833885&tr=orig"
               controls
               playsInline
               preload="metadata"

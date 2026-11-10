@@ -1,7 +1,7 @@
 import './globals.css';
 import type { Metadata } from 'next';
 import { MusicPlayerProvider } from '@/components/music/music-player-provider';
-import { MusicPlayerBar } from '@/components/music/music-player-bar';
+import { LandingAwareMusicBar } from '@/components/music/landing-aware-music-bar';
 import { Toaster } from '@/components/ui/toaster';
 
 export const metadata: Metadata = {
@@ -19,7 +19,7 @@ export default function RootLayout({
       <body className="font-sans bg-background text-foreground">
         <MusicPlayerProvider>
           {children}
-          <MusicPlayerBar />
+          <LandingAwareMusicBar />
         </MusicPlayerProvider>
         <Toaster />
       </body>

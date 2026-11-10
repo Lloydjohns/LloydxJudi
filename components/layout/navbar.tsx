@@ -4,7 +4,6 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
 import {
   Home,
   BookOpen,
@@ -18,6 +17,7 @@ import {
   Menu,
   X,
   Mail,
+  LockKeyhole,
 } from 'lucide-react';
 
 const navItems = [
@@ -68,6 +68,10 @@ export function Navbar() {
         </nav>
 
         <div className="hidden items-center gap-2 md:flex">
+          <Link href="/" className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" aria-label="Return to the password screen">
+            <LockKeyhole className="h-4 w-4" />
+            Re-enter
+          </Link>
           <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#ead8dc] text-xs font-semibold text-wine" aria-label="Lloyd">L</span>
         </div>
 
@@ -104,6 +108,10 @@ export function Navbar() {
                 </Link>
               );
             })}
+            <Link href="/" onClick={() => setMobileOpen(false)} className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
+              <LockKeyhole className="h-4 w-4" />
+              Re-enter password
+            </Link>
           </nav>
         </div>
       )}
