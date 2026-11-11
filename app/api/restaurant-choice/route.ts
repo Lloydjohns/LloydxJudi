@@ -1,6 +1,11 @@
 import { NextResponse } from 'next/server';
 
-const allowedRestaurants = new Set(['Italian', 'Japanese', 'Steakhouse', 'Rooftop']);
+const restaurantLocations: Record<string, string> = {
+  'The Penthouse 8747': '8747 Paseo de Roxas, Makati',
+  'Sumu Niko': 'SM North EDSA, Quezon City',
+  "Italianni's BGC": 'Uptown Mall, Taguig',
+  'Tong Yang SM North': 'SM North EDSA, Quezon City',
+};
 
 export async function POST(request: Request) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -18,7 +23,7 @@ export async function POST(request: Request) {
   } catch {
     return NextResponse.json({ error: 'Invalid request.' }, { status: 400 });
   }
-  if (typeof restaurant !== 'string' || !allowedRestaurants.has(restaurant)) {
+  if (typeof restaurant !== 'string' || !Object.hasOwn(restaurantLocations, restaurant)) {
     return NextResponse.json({ error: 'Choose one of the listed dinner options.' }, { status: 400 });
   }
 
@@ -40,8 +45,8 @@ export async function POST(request: Request) {
     body: JSON.stringify({
       from: sender,
       to: [recipient],
-      subject: 'Anniversary dinner choice',
-      text: `Your anniversary dinner choice is: ${restaurant}.`,
+      subject: `Anniversary dinner choice: ${restaurant}`,
+      text: `Your anniversary dinner choice is: ${restaurant}.\nLocation: ${restaurantLocations[restaurant]}\nDate: Sunday, November 22, 2026.`,
     }),
   });
   if (!emailed.ok) return NextResponse.json({ error: 'Choice saved, but email delivery failed. Check the Resend setup.' }, { status: 502 });

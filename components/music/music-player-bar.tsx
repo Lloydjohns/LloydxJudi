@@ -398,6 +398,7 @@ function PlaylistDrawer({
                   {track.title}
                 </p>
                 <p className="truncate text-xs text-muted-foreground">{track.artist}</p>
+                {track.mood && <p className="truncate text-xs text-muted-foreground/75">{track.mood}</p>}
               </div>
               <span className="text-xs uppercase text-muted-foreground">{track.sourceType}</span>
             </button>

@@ -145,7 +145,7 @@ export default function HomePage() {
             <div className="relative aspect-video bg-black">
               <video
                 className="h-full w-full object-cover"
-                src="https://www.w3schools.com/html/mov_bbb.mp4"
+                src="https://ik.imagekit.io/xui68oltcf/Bebi/lloydxjudi.mp4?updatedAt=1794403872763"
                 controls
                 playsInline
                 preload="metadata"

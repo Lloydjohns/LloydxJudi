@@ -243,19 +243,19 @@ export const demoSpecialDates: SpecialDate[] = [
   },
 ];
 
-const romanticSongs: Array<{ title: string; artist: string; sourceUrl: string }> = [
-  { title: 'Perfect', artist: 'Ed Sheeran', sourceUrl: 'https://www.youtube.com/watch?v=2Vv-BfVoq4g' },
-  { title: 'All of Me', artist: 'John Legend', sourceUrl: 'https://www.youtube.com/watch?v=450p7goxZqg' },
-  { title: 'A Thousand Years', artist: 'Christina Perri', sourceUrl: 'https://www.youtube.com/watch?v=rtOvBOTyX00' },
-  { title: "Can't Help Falling in Love", artist: 'Elvis Presley', sourceUrl: 'https://www.youtube.com/watch?v=vGJTaP6anOU' },
-  { title: 'Thinking Out Loud', artist: 'Ed Sheeran', sourceUrl: 'https://www.youtube.com/watch?v=lp-EO5I60KA' },
-  { title: 'Make You Feel My Love', artist: 'Adele', sourceUrl: 'https://www.youtube.com/watch?v=0put0_a--Ng' },
-  { title: 'Lover', artist: 'Taylor Swift', sourceUrl: 'https://www.youtube.com/watch?v=-BjZmE2gtdo' },
-  { title: 'At Last', artist: 'Etta James', sourceUrl: 'https://www.youtube.com/watch?v=1qJU8G7gR_g' },
-  { title: 'Just the Way You Are', artist: 'Bruno Mars', sourceUrl: 'https://www.youtube.com/watch?v=LQ54WQr3G1E' },
-  { title: 'Marry You', artist: 'Bruno Mars', sourceUrl: 'https://www.youtube.com/watch?v=4ivHu2q1oP0' },
-  { title: 'I Will Always Love You', artist: 'Whitney Houston', sourceUrl: 'https://www.youtube.com/watch?v=3JWTkaa7sYw' },
-  { title: 'You Are the Best Thing', artist: 'Ray LaMontagne', sourceUrl: 'https://www.youtube.com/watch?v=A5rFKOyYp7M' },
+const romanticSongs: Array<{ title: string; artist: string; mood: string; sourceUrl: string }> = [
+  { title: 'Those Eyes', artist: 'New West', mood: 'Sweet, romantic', sourceUrl: 'https://www.youtube.com/watch?v=CPh_YsRhILc' },
+  { title: 'Glue Song', artist: 'beabadoobee', mood: 'Cute, innocent love', sourceUrl: 'https://www.youtube.com/watch?v=y1cBhJLNNXU' },
+  { title: 'Until I Found You', artist: 'Stephen Sanchez', mood: 'Deep romance', sourceUrl: 'https://www.youtube.com/watch?v=GxldQ9eX2wo' },
+  { title: 'Beautiful Things', artist: 'Benson Boone', mood: 'Cherishing someone', sourceUrl: 'https://www.youtube.com/watch?v=HU08BcK5SUY' },
+  { title: 'Daylight', artist: 'Taylor Swift', mood: 'Being deeply in love', sourceUrl: 'https://www.youtube.com/watch?v=u9raS7-NisU' },
+  { title: 'I Like Me Better', artist: 'Lauv', mood: 'Young love', sourceUrl: 'https://www.youtube.com/watch?v=a7fzkqLozwA' },
+  { title: 'Double Take', artist: 'dhruv', mood: 'Crush', sourceUrl: 'https://www.youtube.com/watch?v=myh5xtfUG-I' },
+  { title: 'Every Summertime', artist: 'NIKI', mood: 'Summer romance', sourceUrl: 'https://www.youtube.com/watch?v=OXtZfPZIex4' },
+  { title: 'Lover', artist: 'Taylor Swift', mood: 'Forever love', sourceUrl: 'https://www.youtube.com/watch?v=cvUAzpn48xA' },
+  { title: 'Best Part', artist: 'Daniel Caesar ft. H.E.R.', mood: 'Intimate romance', sourceUrl: 'https://www.youtube.com/watch?v=vBy7FaapGRo' },
+  { title: 'Until I Found You (Em Beihold Version)', artist: 'Stephen Sanchez & Em Beihold', mood: 'Dreamy', sourceUrl: 'https://www.youtube.com/watch?v=kPlSyYtE63M' },
+  { title: 'Snooze', artist: 'SZA', mood: 'Devoted love', sourceUrl: 'https://www.youtube.com/watch?v=Sv5yCzPCkv8' },
 ];
 
 export const demoPlaylistTracks: PlaylistTrack[] = romanticSongs.map((song, index) => ({
@@ -264,6 +264,7 @@ export const demoPlaylistTracks: PlaylistTrack[] = romanticSongs.map((song, inde
   position: index + 1,
   title: song.title,
   artist: song.artist,
+  mood: song.mood,
   sourceType: 'youtube' as const,
   sourceUrl: song.sourceUrl,
   coverImage: null,

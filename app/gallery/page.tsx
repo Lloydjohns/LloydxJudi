@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { AppShell } from '@/components/layout/app-shell';
 import { SectionHeading, EmptyState } from '@/components/layout/shared';
@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Images, MapPin, Calendar, Filter, X, Plus, Pencil, Trash2, Play } from 'lucide-react';
+import { Images, MapPin, Calendar, Filter, X, Plus, Pencil, Trash2, Play, ChevronLeft, ChevronRight } from 'lucide-react';
 import { demoMemories, getDemoChapters, DEMO_ANNIVERSARY_DATE } from '@/lib/demo-data';
 import type { Memory } from '@/lib/types';
 import { format } from 'date-fns';
@@ -20,6 +20,10 @@ import { saveLocalList } from '@/lib/local-data';
 const ALL_TAGS = ['milestone', 'travel', 'funny', 'first-date'];
 const FILTER_TAGS = ['all', ...ALL_TAGS];
 const STORAGE_KEY = 'llodxjudi-memories';
+const featuredVideos = [
+  { id: 'our-love-story', title: 'Our Love Story', src: '/video/lloydxjudi.mp4', detail: 'Our anniversary video' },
+  { id: 'love-reel', title: 'A little movie of us', src: 'https://ik.imagekit.io/xui68oltcf/Bebi/8293f6ee2e954f0d94b2237d90416d57.mov/ik-video.mp4?updatedAt=1794319833885&tr=orig', detail: 'Love reel' },
+];
 
 type ChapterFilter = 'all' | string;
 type TagFilter = 'all' | string;
@@ -34,6 +38,8 @@ export default function GalleryPage() {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [showFilters, setShowFilters] = useState(false);
+  const [videoIndex, setVideoIndex] = useState(0);
+  const touchStart = useRef<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -68,6 +74,36 @@ export default function GalleryPage() {
       return true;
     });
   }, [allMemories, tagFilter, chapterFilter, dateFrom, dateTo]);
+  const galleryVideos = useMemo(() => [
+    ...featuredVideos,
+    ...filteredMemories
+      .filter((memory): memory is Memory & { videoPath: string } => Boolean(memory.videoPath))
+      .map((memory) => ({
+        id: memory.id,
+        title: memory.title,
+        src: memory.videoPath,
+        detail: format(new Date(memory.memoryDate), 'MMM d, yyyy'),
+      })),
+  ], [filteredMemories]);
+  const activeVideoIndex = Math.min(videoIndex, galleryVideos.length - 1);
+  const activeVideo = galleryVideos[activeVideoIndex];
+
+  const showPreviousVideo = () => setVideoIndex(Math.max(0, activeVideoIndex - 1));
+  const showNextVideo = () => setVideoIndex(Math.min(galleryVideos.length - 1, activeVideoIndex + 1));
+  const handleTouchStart = (event: React.TouchEvent<HTMLDivElement>) => {
+    const touch = event.touches[0];
+    touchStart.current = { x: touch.clientX, y: touch.clientY };
+  };
+  const handleTouchEnd = (event: React.TouchEvent<HTMLDivElement>) => {
+    if (!touchStart.current) return;
+    const touch = event.changedTouches[0];
+    const deltaX = touch.clientX - touchStart.current.x;
+    const deltaY = touch.clientY - touchStart.current.y;
+    touchStart.current = null;
+    if (Math.abs(deltaX) < 50 || Math.abs(deltaX) <= Math.abs(deltaY)) return;
+    if (deltaX < 0) showNextVideo();
+    else showPreviousVideo();
+  };
 
   const hasActiveFilters = tagFilter !== 'all' || chapterFilter !== 'all' || dateFrom || dateTo;
 
@@ -260,22 +296,57 @@ export default function GalleryPage() {
         </div>
 
         <section className="mt-10 overflow-hidden rounded-[28px] border border-primary/10 bg-white shadow-soft">
-          <div className="relative aspect-[16/9] w-full bg-black">
+          <div className="flex items-center justify-between gap-3 p-4 sm:px-6">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-primary">Our videos</p>
+              <h2 className="mt-1 font-serif-display text-2xl text-wine sm:text-3xl">{activeVideo.title}</h2>
+              <p className="mt-1 text-xs text-muted-foreground">{activeVideo.detail}</p>
+            </div>
+            <span className="shrink-0 text-sm text-muted-foreground">{activeVideoIndex + 1} / {galleryVideos.length}</span>
+          </div>
+          <div
+            className="relative aspect-[16/9] w-full bg-black"
+            style={{ touchAction: 'pan-y' }}
+            onTouchStart={handleTouchStart}
+            onTouchEnd={handleTouchEnd}
+          >
             <video
+              key={activeVideo.id}
               className="relative z-10 h-full w-full object-contain"
-              src="https://ik.imagekit.io/xui68oltcf/Bebi/8293f6ee2e954f0d94b2237d90416d57.mov/ik-video.mp4?updatedAt=1794319833885&tr=orig"
+              src={activeVideo.src}
               controls
+              autoPlay
+              muted
               playsInline
               preload="metadata"
+              aria-label={`Play video: ${activeVideo.title}`}
             >
               Your browser does not support the video tag.
             </video>
-            <div className="pointer-events-none absolute inset-0 z-20 bg-gradient-to-t from-[#1a0d13]/80 via-transparent to-transparent" />
-            <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 p-6 sm:p-8">
-              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-white/80">Love reel</p>
-              <h2 className="mt-2 font-serif-display text-3xl text-white sm:text-5xl">A little movie of us</h2>
-            </div>
+            <Button
+              type="button"
+              variant="secondary"
+              size="icon"
+              className="absolute left-3 top-1/2 z-20 h-10 w-10 -translate-y-1/2 rounded-full bg-white/90 text-wine shadow hover:bg-white disabled:opacity-40"
+              onClick={showPreviousVideo}
+              disabled={activeVideoIndex === 0}
+              aria-label="Play previous video"
+            >
+              <ChevronLeft className="h-5 w-5" />
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              size="icon"
+              className="absolute right-3 top-1/2 z-20 h-10 w-10 -translate-y-1/2 rounded-full bg-white/90 text-wine shadow hover:bg-white disabled:opacity-40"
+              onClick={showNextVideo}
+              disabled={activeVideoIndex === galleryVideos.length - 1}
+              aria-label="Play next video"
+            >
+              <ChevronRight className="h-5 w-5" />
+            </Button>
           </div>
+          <p className="p-3 text-center text-xs text-muted-foreground sm:hidden">Swipe left or right to switch videos</p>
         </section>
       </div>
       </div>

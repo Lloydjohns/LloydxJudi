@@ -6,6 +6,20 @@ import { demoPlaylistTracks } from '@/lib/demo-data';
 import { makeLocalId, saveLocalList } from '@/lib/local-data';
 
 const STORAGE_KEY = 'llodxjudi-playlist';
+const previousDefaultSongs = [
+  ['Perfect', 'Ed Sheeran'],
+  ['All of Me', 'John Legend'],
+  ['A Thousand Years', 'Christina Perri'],
+  ["Can't Help Falling in Love", 'Elvis Presley'],
+  ['Thinking Out Loud', 'Ed Sheeran'],
+  ['Make You Feel My Love', 'Adele'],
+  ['Lover', 'Taylor Swift'],
+  ['At Last', 'Etta James'],
+  ['Just the Way You Are', 'Bruno Mars'],
+  ['Marry You', 'Bruno Mars'],
+  ['I Will Always Love You', 'Whitney Houston'],
+  ['You Are the Best Thing', 'Ray LaMontagne'],
+];
 
 export type RepeatMode = 'off' | 'one' | 'all';
 
@@ -17,6 +31,7 @@ function isPlaylistTrack(value: unknown): value is PlaylistTrack {
     && typeof track.position === 'number'
     && typeof track.title === 'string'
     && typeof track.artist === 'string'
+    && (track.mood === undefined || typeof track.mood === 'string')
     && (track.sourceType === 'file' || track.sourceType === 'spotify' || track.sourceType === 'youtube' || track.sourceType === 'soundcloud')
     && typeof track.sourceUrl === 'string'
     && (track.coverImage === null || typeof track.coverImage === 'string')
@@ -80,7 +95,13 @@ export function MusicPlayerProvider({ children }: { children: ReactNode }) {
       try {
         const savedTracks: unknown = JSON.parse(raw);
         if (Array.isArray(savedTracks) && savedTracks.every(isPlaylistTrack)) {
-          setTracks(savedTracks);
+          const isPreviousDefault = savedTracks.length === previousDefaultSongs.length
+            && savedTracks.every((track, index) => (
+              track.id === `pt-${index + 1}`
+              && track.title === previousDefaultSongs[index][0]
+              && track.artist === previousDefaultSongs[index][1]
+            ));
+          setTracks(isPreviousDefault ? demoPlaylistTracks : savedTracks);
         } else {
           setAudioError('Saved playlist data is invalid.');
         }

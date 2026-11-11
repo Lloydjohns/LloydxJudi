@@ -426,6 +426,7 @@ export default function MusicPage() {
                           {track.title}
                         </p>
                         <p className="truncate text-xs text-white/45 mt-0.5">{track.artist}</p>
+                        {track.mood && <p className="truncate text-xs text-[#f6b2c5]/65 mt-0.5">{track.mood}</p>}
                       </div>
 
                       {/* Source badge */}

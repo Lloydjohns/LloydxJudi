@@ -74,6 +74,7 @@ export interface PlaylistTrack {
   position: number;
   title: string;
   artist: string;
+  mood?: string;
   sourceType: TrackSourceType;
   sourceUrl: string;
   coverImage: string | null;
