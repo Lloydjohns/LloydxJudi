@@ -20,6 +20,8 @@ const escapeHtml = (value: string) => value
   .replace(/"/g, '&quot;')
   .replace(/'/g, '&#39;');
 
+const redactEmailAddresses = (value: string) => value.replace(/[^\s@,<>]+@[^\s@,<>]+\.[^\s@,<>]+/g, '[email address]');
+
 export async function POST(request: Request) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -149,7 +151,7 @@ export async function POST(request: Request) {
       }
       const message = sanitizeText(providerMessage, 500) || `Resend returned HTTP ${response.status}.`;
       console.error('Resend email delivery failed:', { email, status: response.status, message });
-      return { email, ok: false as const, status: response.status, message: `HTTP ${response.status}: ${message}` };
+      return { email, ok: false as const, status: response.status, message };
     } catch (error) {
       console.error('Resend request failed for a configured recipient:', error);
       return { email, ok: false as const, status: null, message: 'Could not reach the email service.' };
@@ -158,16 +160,14 @@ export async function POST(request: Request) {
   const sentCount = deliveryResults.filter((result) => result.ok).length;
   const failures = deliveryResults.filter((result) => !result.ok);
   if (sentCount === 0) {
-    const failureStatuses = failures.map((failure) => failure.status);
-    const error = failureStatuses.includes(401)
-      ? 'Choice saved, but Resend rejected the API key. Check RESEND_API_KEY in Vercel, then redeploy.'
-      : failureStatuses.includes(403)
-        ? 'Choice saved, but Resend blocked the email. For free testing, set Vercel ANNIVERSARY_EMAIL_TO to the email registered with your Resend account and RESEND_FROM to LloydxJudi <onboarding@resend.dev>, then redeploy.'
-        : failureStatuses.includes(422)
-          ? 'Choice saved, but Resend rejected the sender or recipient. Check RESEND_FROM and ANNIVERSARY_EMAIL_TO in Vercel, then redeploy.'
-          : 'Choice saved, but the email service could not send the notification. Check the Resend API key and Vercel function logs.';
+    const error = failures.map((failure) => {
+      const reason = failure.status === null
+        ? failure.message
+        : `Resend returned HTTP ${failure.status}: ${failure.message}`;
+      return redactEmailAddresses(reason);
+    }).join(' ');
     return NextResponse.json({
-      error,
+      error: `Choice saved, but Resend could not send the email. ${error}`,
     }, { status: 502 });
   }
   return NextResponse.json({
