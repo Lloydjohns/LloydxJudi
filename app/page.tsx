@@ -281,7 +281,14 @@ export default function WelcomePage() {
 
             <div className="mt-9 flex items-center justify-between gap-3 border-t border-white/10 pt-5">
               {step > 0 ? <Button variant="ghost" onClick={() => setStep((current) => current - 1)} className="text-white/70 hover:bg-white/10 hover:text-white"><ArrowLeft className="mr-2 h-4 w-4" />Back</Button> : <span />}
-              {step < steps.length - 1 ? <Button onClick={step === 1 ? (choiceError ? () => { setPreviewOnly(true); setStep(2); } : continueFromRestaurant) : () => setStep((current) => current + 1)} disabled={(step === 1 && (!restaurant || sendingChoice || choiceSent))} className="rounded-xl bg-[#d96388] text-white hover:bg-[#e37699] disabled:opacity-40">{sendingChoice ? 'Sending…' : step === 1 ? (choiceSent ? 'Sent' : choiceError ? 'Continue preview' : 'Email my choice & continue') : 'Next'}<ArrowRight className="ml-2 h-4 w-4" /></Button> : <Button onClick={finish} className="rounded-xl bg-[#d96388] text-white hover:bg-[#e37699]">Explore our story<Sparkles className="ml-2 h-4 w-4" /></Button>}
+              <div className="flex items-center gap-2">
+                {step === 1 && choiceError && (
+                  <Button type="button" variant="ghost" onClick={() => { setPreviewOnly(true); setStep(2); }} className="text-xs text-white/65 hover:bg-white/10 hover:text-white">
+                    Continue without email
+                  </Button>
+                )}
+                {step < steps.length - 1 ? <Button onClick={step === 1 ? continueFromRestaurant : () => setStep((current) => current + 1)} disabled={(step === 1 && (!restaurant || sendingChoice))} className="rounded-xl bg-[#d96388] text-white hover:bg-[#e37699] disabled:opacity-40">{sendingChoice ? 'Sending…' : step === 1 ? (choiceError ? 'Try email again' : choiceSent ? 'Send again & continue' : 'Email my choice & continue') : 'Next'}<ArrowRight className="ml-2 h-4 w-4" /></Button> : <Button onClick={finish} className="rounded-xl bg-[#d96388] text-white hover:bg-[#e37699]">Explore our story<Sparkles className="ml-2 h-4 w-4" /></Button>}
+              </div>
             </div>
           </div>
           <div className="mt-4 flex flex-wrap justify-center gap-x-3 gap-y-1 text-[10px] text-white/35">{steps.map((label, index) => <span key={label} className={index === step ? 'text-[#ffb4c7]' : ''}>{label}</span>)}</div>

@@ -149,17 +149,25 @@ export async function POST(request: Request) {
       }
       const message = sanitizeText(providerMessage, 500) || `Resend returned HTTP ${response.status}.`;
       console.error('Resend email delivery failed:', { email, status: response.status, message });
-      return { email, ok: false as const, message: `HTTP ${response.status}: ${message}` };
+      return { email, ok: false as const, status: response.status, message: `HTTP ${response.status}: ${message}` };
     } catch (error) {
-      console.error('Resend request failed:', { email, error });
-      return { email, ok: false as const, message: 'Could not reach the email service.' };
+      console.error('Resend request failed for a configured recipient:', error);
+      return { email, ok: false as const, status: null, message: 'Could not reach the email service.' };
     }
   }));
   const sentCount = deliveryResults.filter((result) => result.ok).length;
   const failures = deliveryResults.filter((result) => !result.ok);
   if (sentCount === 0) {
+    const failureStatuses = failures.map((failure) => failure.status);
+    const error = failureStatuses.includes(401)
+      ? 'Choice saved, but Resend rejected the API key. Check RESEND_API_KEY in Vercel, then redeploy.'
+      : failureStatuses.includes(403)
+        ? 'Choice saved, but Resend blocked the email. For free testing, set Vercel ANNIVERSARY_EMAIL_TO to the email registered with your Resend account and RESEND_FROM to LloydxJudi <onboarding@resend.dev>, then redeploy.'
+        : failureStatuses.includes(422)
+          ? 'Choice saved, but Resend rejected the sender or recipient. Check RESEND_FROM and ANNIVERSARY_EMAIL_TO in Vercel, then redeploy.'
+          : 'Choice saved, but the email service could not send the notification. Check the Resend API key and Vercel function logs.';
     return NextResponse.json({
-      error: 'Choice saved, but email notifications could not be sent. Please check the server logs and Resend setup.',
+      error,
     }, { status: 502 });
   }
   return NextResponse.json({

@@ -118,7 +118,7 @@ export default function ChapterDetailPage() {
                 <Link key={memory.id} href={`/memories/${memory.id}`}>
                   <Card className="border-primary/15 shadow-soft hover:shadow-romantic hover:-translate-y-0.5 transition-all duration-300 cursor-pointer overflow-hidden group h-full">
                     {memory.imagePath && (
-                      <div className="relative h-40 overflow-hidden">
+                      <div className="relative h-52 overflow-hidden sm:h-64">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
                           src={memory.imagePath}
