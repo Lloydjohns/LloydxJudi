@@ -149,8 +149,10 @@ export default function TimelinePage() {
                     <h3 className="font-serif-display text-lg font-semibold">{entry.title}</h3>
                     <p className="mt-1 whitespace-pre-line text-sm text-muted-foreground">{entry.story}</p>
                     {entry.imageUrl && (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={entry.imageUrl} alt={entry.title} className="mt-3 max-h-72 w-full rounded-lg object-cover" loading="lazy" />
+                      <div className="mt-4 flex max-h-[36rem] items-center justify-center overflow-hidden rounded-xl bg-muted/30">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={entry.imageUrl} alt={entry.title} className="max-h-[36rem] w-full object-contain" loading="lazy" />
+                      </div>
                     )}
                   </div>
                   <div className="flex shrink-0 gap-1">
@@ -213,7 +215,7 @@ export default function TimelinePage() {
                       <Link href={`/timeline/${chapter.id}`}>
                         <Card className="editorial-card rounded-2xl hover:shadow-romantic hover:-translate-y-0.5 transition-all duration-300 cursor-pointer overflow-hidden group">
                           {chapter.coverImage && (
-                            <div className="relative h-40 overflow-hidden">
+                            <div className="relative h-52 overflow-hidden sm:h-64">
                               {/* eslint-disable-next-line @next/next/no-img-element */}
                               <img
                                 src={chapter.coverImage}
