@@ -30,7 +30,10 @@ export async function POST(request: Request) {
     .split(',')
     .map((email) => email.trim())
     .filter(Boolean);
-  const sender = process.env.RESEND_FROM;
+  const sender = process.env.RESEND_FROM
+    ?.trim()
+    .replace(/^(['"])(.*)\1$/, '$2')
+    .trim();
   if (!supabaseUrl || !serviceKey || !resendKey || recipients.length === 0 || !sender) {
     return NextResponse.json({ error: 'Restaurant notifications are not configured yet.' }, { status: 503 });
   }
