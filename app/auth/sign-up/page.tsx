@@ -7,17 +7,46 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Heart, Mail, Lock, User, ArrowLeft, AlertCircle } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { getSupabaseBrowserClient } from '@/lib/supabase-client';
+import { syncLocalStoryData } from '@/lib/story-cloud';
 
 export default function SignUpPage() {
+  const router = useRouter();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [message, setMessage] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setTimeout(() => setLoading(false), 1000);
+    setError('');
+    setMessage('');
+    try {
+      const supabase = getSupabaseBrowserClient();
+      const { data, error: signUpError } = await supabase.auth.signUp({
+        email: email.trim(),
+        password,
+        options: {
+          data: { display_name: name.trim() },
+          emailRedirectTo: `${window.location.origin}/auth/sign-in`,
+        },
+      });
+      if (signUpError) throw signUpError;
+      if (!data.session) {
+        setMessage('Check your email to confirm the account, then sign in on each device.');
+        setLoading(false);
+        return;
+      }
+      await syncLocalStoryData();
+      router.replace('/home');
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not create your account.');
+      setLoading(false);
+    }
   };
 
   return (
@@ -84,6 +113,8 @@ export default function SignUpPage() {
                   />
                 </div>
               </div>
+              {error && <p role="alert" className="flex items-start gap-2 text-sm text-destructive"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />{error}</p>}
+              {message && <p role="status" className="flex items-start gap-2 text-sm text-primary"><Mail className="mt-0.5 h-4 w-4 shrink-0" />{message}</p>}
               <Button
                 type="submit"
                 className="w-full bg-gradient-wine text-primary-foreground hover:opacity-90 shadow-soft"
@@ -101,7 +132,7 @@ export default function SignUpPage() {
             </div>
             <div className="mt-4 flex items-start gap-2 rounded-lg bg-muted/40 px-3 py-2.5 text-xs text-muted-foreground">
               <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
-              <span>Authentication is not yet active. It arrives in Milestone 2 with Supabase Auth.</span>
+              <span>Use this same account to sign in on your laptop, computer, and phone.</span>
             </div>
           </CardContent>
         </Card>

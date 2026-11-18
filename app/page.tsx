@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import Image from 'next/image';
 import { AlertCircle, ArrowLeft, ArrowRight, CalendarDays, Check, Clapperboard, Clock3, ExternalLink, Heart, Lock, MapPin, Music2, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -142,6 +143,12 @@ export default function WelcomePage() {
               <Lock className="mr-2 h-4 w-4" />Unlock Our Story
             </Button>
           </form>
+          <p className="mt-5 text-sm text-white/65">
+            Already have an account?{' '}
+            <Link href="/auth/sign-in" className="font-semibold text-white underline underline-offset-4">Sign in</Link>
+            {' · '}
+            <Link href="/auth/sign-up" className="font-semibold text-white underline underline-offset-4">Create account</Link>
+          </p>
           <p className="mt-10 text-xs text-white/40">The best part of my life is you. <span aria-hidden="true">♡</span></p>
         </section>
       ) : (
@@ -266,7 +273,7 @@ export default function WelcomePage() {
               <div className="mx-auto mt-6 max-w-lg rounded-2xl border border-white/10 bg-black/10 p-5 text-left sm:p-7">
                 <p className="font-script text-2xl text-[#ffb4c7]">My love,</p>
                 <p className="mt-3 text-sm leading-7 text-white/80">I’m so thankful to have you in my life. Thank you for staying with me through the ups and downs, for all the laughter, the little moments, and even the hard days. No matter where we are, you always make me feel at home. I may not always say it, but I appreciate you more than you know. </p>
-                <p className="mt-3 text-sm leading-7 text-white/80">I love you so much, and I’m looking forward to making more memories with you. Here's to us and to many more years together.</p>
+                <p className="mt-3 text-sm leading-7 text-white/80">I love you so much, and I’m looking forward to making more memories with you. Here&apos;s to us and to many more years together.</p>
                 <p className="mt-5 font-script text-2xl text-[#ffb4c7]">Lloydie </p>
               </div>
             </div>}

@@ -13,7 +13,10 @@ import { Badge } from '@/components/ui/badge';
 import { ArrowLeft, CalendarDays, ImagePlus, Link2, MapPin, Save, Tag, Video, X } from 'lucide-react';
 import { demoMemories, getDemoChapters, DEMO_ANNIVERSARY_DATE } from '@/lib/demo-data';
 import type { Memory } from '@/lib/types';
-import { saveLocalList } from '@/lib/local-data';
+import { loadCloudValue, saveCloudValue } from '@/lib/story-cloud';
+import { makeLocalId } from '@/lib/local-data';
+import { deleteStoryMedia, isSupabaseMediaReference, uploadStoryMedia } from '@/lib/story-media';
+import { StoryImage } from '@/components/media/story-image';
 
 const STORAGE_KEY = 'llodxjudi-memories';
 
@@ -25,6 +28,10 @@ export default function NewMemoryPage() {
   const [tags, setTags] = useState<string[]>(['Milestone']);
   const [tagValue, setTagValue] = useState('');
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [videoFile, setVideoFile] = useState<File | null>(null);
   const [customChapterName, setCustomChapterName] = useState('');
   const [form, setForm] = useState({
     title: '',
@@ -38,24 +45,31 @@ export default function NewMemoryPage() {
 
   useEffect(() => {
     if (!editId) return;
-    const raw = localStorage.getItem(STORAGE_KEY);
-    let memories: Memory[] = demoMemories;
-    if (raw) {
-      try { memories = JSON.parse(raw) as Memory[]; } catch { memories = demoMemories; }
-    }
-    const memory = memories.find((item) => item.id === editId);
-    if (!memory) return;
-    setForm({
-      title: memory.title,
-      memoryDate: memory.memoryDate,
-      location: memory.location ?? '',
-      chapterId: memory.chapterName ? 'custom' : memory.chapterId,
-      story: memory.story,
-      imagePath: memory.imagePath ?? '',
-      videoPath: memory.videoPath ?? '',
-    });
-    setCustomChapterName(memory.chapterName ?? '');
-    setTags(memory.tags);
+    let active = true;
+    loadCloudValue<Memory[]>(STORAGE_KEY, demoMemories)
+      .then((memories) => {
+        const memory = memories.find((item) => item.id === editId);
+        if (!active) return;
+        if (!memory) {
+          setSaveError('This memory was not found in your shared story.');
+          return;
+        }
+        setForm({
+          title: memory.title,
+          memoryDate: memory.memoryDate,
+          location: memory.location ?? '',
+          chapterId: memory.chapterName ? 'custom' : memory.chapterId,
+          story: memory.story,
+          imagePath: memory.imagePath ?? '',
+          videoPath: memory.videoPath ?? '',
+        });
+        setCustomChapterName(memory.chapterName ?? '');
+        setTags(memory.tags);
+      })
+      .catch((cause: unknown) => {
+        if (active) setSaveError(cause instanceof Error ? cause.message : 'Could not load this memory.');
+      });
+    return () => { active = false; };
   }, [editId]);
 
   const addTag = () => {
@@ -68,43 +82,63 @@ export default function NewMemoryPage() {
     setForm((current) => ({ ...current, [field]: value }));
   };
 
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-
     const title = form.title.trim();
     const story = form.story.trim();
     const memoryDate = form.memoryDate;
 
     if (!title || !story || !memoryDate) return;
+    setSaving(true);
+    setSaveError('');
 
-    const customMemory: Memory = {
-      id: editId ?? `memory-${Date.now()}`,
-      coupleId: 'demo',
-      chapterId: form.chapterId === 'custom' ? `custom-${customChapterName.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-')}` : form.chapterId,
-      chapterName: form.chapterId === 'custom' ? customChapterName.trim() : undefined,
-      title,
-      memoryDate,
-      story,
-      imagePath: form.imagePath.trim() || null,
-      videoPath: form.videoPath.trim() || null,
-      location: form.location.trim() || null,
-      tags: tags.length ? tags.map((tag) => tag.toLowerCase().replace(/\s+/g, '-')) : ['milestone'],
-      createdBy: 'demo',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
+    let uploadedImage: string | null = null;
+    let uploadedVideo: string | null = null;
+    try {
+      const current = await loadCloudValue<Memory[]>(STORAGE_KEY, demoMemories);
+      const existing = current.find((memory) => memory.id === editId);
+      const id = existing?.id ?? makeLocalId('memory');
+      const imagePath = imageFile
+        ? (uploadedImage = await uploadStoryMedia(imageFile, `memories/${id}`))
+        : form.imagePath.trim() || null;
+      const videoPath = videoFile
+        ? (uploadedVideo = await uploadStoryMedia(videoFile, `memories/${id}`))
+        : form.videoPath.trim() || null;
+      const customMemory: Memory = {
+        id,
+        coupleId: existing?.coupleId ?? 'demo',
+        chapterId: form.chapterId === 'custom' ? `custom-${customChapterName.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-')}` : form.chapterId,
+        chapterName: form.chapterId === 'custom' ? customChapterName.trim() : undefined,
+        title,
+        memoryDate,
+        story,
+        imagePath,
+        videoPath,
+        location: form.location.trim() || null,
+        tags: tags.length ? tags.map((tag) => tag.toLowerCase().replace(/\s+/g, '-')) : ['milestone'],
+        createdBy: existing?.createdBy ?? 'demo',
+        createdAt: existing?.createdAt ?? new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
 
-    let current: Memory[] = demoMemories;
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      try { current = JSON.parse(raw) as Memory[]; } catch { current = demoMemories; }
+      const next = existing
+        ? current.map((memory) => memory.id === existing.id ? customMemory : memory)
+        : [customMemory, ...current];
+      await saveCloudValue(STORAGE_KEY, next);
+      setSaved(true);
+
+      const oldImage = existing?.imagePath && existing.imagePath !== imagePath ? existing.imagePath : null;
+      const oldVideo = existing?.videoPath && existing.videoPath !== videoPath ? existing.videoPath : null;
+      try {
+        await Promise.all([deleteStoryMedia(oldImage), deleteStoryMedia(oldVideo)]);
+      } catch (cleanupError) {
+        window.alert(cleanupError instanceof Error ? `Memory saved, but old media cleanup failed: ${cleanupError.message}` : 'Memory saved, but old media cleanup failed.');
+      }
+      window.setTimeout(() => router.push('/gallery'), 700);
+    } catch (cause) {
+      setSaveError(cause instanceof Error ? cause.message : 'Could not save this memory to the cloud.');
+      setSaving(false);
     }
-    const next = editId
-      ? current.map((memory) => memory.id === editId ? { ...customMemory, createdAt: memory.createdAt } : memory)
-      : [customMemory, ...current];
-    saveLocalList(STORAGE_KEY, next);
-    setSaved(true);
-    window.setTimeout(() => router.push('/gallery'), 700);
   };
 
   return (
@@ -124,31 +158,56 @@ export default function NewMemoryPage() {
                 <div className="rounded-2xl border-2 border-dashed border-primary/25 bg-primary/5 p-4">
                   <div className="flex items-center gap-2 text-primary">
                     <ImagePlus className="h-5 w-5" />
-                    <p className="text-sm font-semibold">Image Link</p>
+                    <p className="text-sm font-semibold">Photo</p>
                   </div>
                   <Input
-                    value={form.imagePath}
-                    onChange={(event) => handleChange('imagePath', event.target.value)}
-                    placeholder="https://images.example.com/our-date.jpg"
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/gif"
+                    onChange={(event) => setImageFile(event.target.files?.[0] ?? null)}
                     className="mt-3 border-primary/20 bg-white/70"
                   />
+                  <Input
+                    type="url"
+                    value={isSupabaseMediaReference(form.imagePath) ? '' : form.imagePath}
+                    onChange={(event) => { setImageFile(null); handleChange('imagePath', event.target.value); }}
+                    placeholder="https://images.example.com/our-date.jpg"
+                    aria-label="Or paste a photo URL"
+                    className="mt-3 border-primary/20 bg-white/70"
+                  />
+                  {imageFile && <p className="mt-2 text-xs text-muted-foreground">Selected: {imageFile.name}</p>}
+                  {!imageFile && form.imagePath && (
+                    <div className="mt-3 flex items-center gap-3">
+                      <StoryImage src={form.imagePath} alt="Current memory photo" className="h-16 w-16 rounded-md object-cover" />
+                      <Button type="button" size="sm" variant="outline" onClick={() => handleChange('imagePath', '')}>Remove photo</Button>
+                    </div>
+                  )}
                 </div>
 
                 <div className="rounded-2xl border-2 border-dashed border-primary/25 bg-primary/5 p-4">
                   <div className="flex items-center gap-2 text-primary">
                     <Video className="h-5 w-5" />
-                    <p className="text-sm font-semibold">Video Link</p>
+                    <p className="text-sm font-semibold">Video</p>
                   </div>
                   <Input
-                    value={form.videoPath}
-                    onChange={(event) => handleChange('videoPath', event.target.value)}
-                    placeholder="https://example.com/our-love-story.mp4"
+                    type="file"
+                    accept="video/mp4,video/webm,video/quicktime"
+                    onChange={(event) => setVideoFile(event.target.files?.[0] ?? null)}
                     className="mt-3 border-primary/20 bg-white/70"
                   />
+                  <Input
+                    type="url"
+                    value={isSupabaseMediaReference(form.videoPath) ? '' : form.videoPath}
+                    onChange={(event) => { setVideoFile(null); handleChange('videoPath', event.target.value); }}
+                    placeholder="https://example.com/our-love-story.mp4"
+                    aria-label="Or paste a video URL"
+                    className="mt-3 border-primary/20 bg-white/70"
+                  />
+                  {videoFile && <p className="mt-2 text-xs text-muted-foreground">Selected: {videoFile.name}</p>}
+                  {form.videoPath && !videoFile && <Button type="button" size="sm" variant="outline" className="mt-2" onClick={() => handleChange('videoPath', '')}>Remove video</Button>}
                 </div>
 
                 <div className="rounded-2xl border border-primary/15 bg-white/60 p-4 text-xs leading-5 text-muted-foreground">
-                  Keep it simple: paste a direct image or video URL. No heavy files are uploaded here.
+                  Upload photos or videos up to 50 MB each to your private cloud storage, or paste a direct URL.
                 </div>
               </CardContent>
             </Card>
@@ -163,7 +222,8 @@ export default function NewMemoryPage() {
                 <div className="space-y-2"><Label htmlFor="chapter">Chapter</Label><select id="chapter" value={form.chapterId} onChange={(event) => handleChange('chapterId', event.target.value)} className="flex h-10 w-full rounded-md border border-primary/20 bg-white/70 px-3 text-sm text-foreground outline-none focus:ring-2 focus:ring-primary/30">{chapters.map((chapter) => <option key={chapter.id} value={chapter.id}>Month {chapter.monthNumber} · {chapter.title}</option>)}<option value="custom">Type a chapter name…</option></select>{form.chapterId === 'custom' && <Input value={customChapterName} onChange={(event) => setCustomChapterName(event.target.value)} placeholder="Type your chapter name" required className="border-primary/20 bg-white/70" />}</div>
                 <div className="space-y-2"><Label htmlFor="story">Story <span className="text-primary">*</span></Label><Textarea id="story" value={form.story} onChange={(event) => handleChange('story', event.target.value)} required placeholder="Tell the story behind this memory..." className="min-h-32 border-primary/20 bg-white/70" /></div>
                 <div className="space-y-2"><Label className="flex items-center gap-1.5"><Tag className="h-4 w-4 text-primary" /> Tags</Label><div className="flex flex-wrap gap-2">{tags.map((tag) => <Badge key={tag} variant="secondary" className="gap-1 capitalize">{tag}<button type="button" onClick={() => setTags(tags.filter((item) => item !== tag))} aria-label={`Remove ${tag}`}><X className="h-3 w-3" /></button></Badge>)}</div><div className="flex gap-2"><Input value={tagValue} onChange={(event) => setTagValue(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); addTag(); } }} placeholder="Add a tag" className="border-primary/20 bg-white/70" /><Button type="button" variant="outline" onClick={addTag}>Add</Button></div></div>
-                <Button type="submit" className="w-full bg-gradient-wine text-white hover:opacity-90"><Save className="mr-2 h-4 w-4" />{saved ? 'Saved locally...' : editId ? 'Update Memory ♡' : 'Save Memory ♡'}</Button>
+                {saveError && <p role="alert" className="text-sm text-destructive">{saveError}</p>}
+                <Button type="submit" disabled={saving} className="w-full bg-gradient-wine text-white hover:opacity-90"><Save className="mr-2 h-4 w-4" />{saved ? 'Saved to cloud...' : saving ? 'Saving to cloud...' : editId ? 'Update Memory ♡' : 'Save Memory ♡'}</Button>
               </CardContent>
             </Card>
           </form>

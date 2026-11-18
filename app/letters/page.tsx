@@ -11,13 +11,14 @@ import { Mail, PenLine, Pencil, Trash2 } from 'lucide-react';
 import { getDemoChapters, DEMO_ANNIVERSARY_DATE } from '@/lib/demo-data';
 import { format } from 'date-fns';
 import type { LoveLetter } from '@/lib/types';
-import { saveLocalList } from '@/lib/local-data';
+import { loadCloudValue, saveCloudValue, STORY_COLLECTION_KEYS } from '@/lib/story-cloud';
 
-const STORAGE_KEY = 'llodxjudi-letters';
+const STORAGE_KEY = STORY_COLLECTION_KEYS.letters;
 
 export default function LettersPage() {
   const [letters, setLetters] = useState<LoveLetter[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState('');
 
   useEffect(() => {
     const chapters = getDemoChapters(new Date(DEMO_ANNIVERSARY_DATE));
@@ -31,30 +32,28 @@ export default function LettersPage() {
       createdBy: 'demo',
       createdAt: chapter.createdAt,
     }));
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved === null) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(demoLetters));
-      setLetters(demoLetters);
-      setSelectedId(demoLetters[0]?.id ?? null);
-      return;
-    }
-    try {
-      const parsed = JSON.parse(saved) as LoveLetter[];
-      setLetters(Array.isArray(parsed) ? parsed : demoLetters);
-      setSelectedId(parsed[0]?.id ?? null);
-    } catch {
-      setLetters(demoLetters);
-      setSelectedId(demoLetters[0]?.id ?? null);
-    }
+    let active = true;
+    loadCloudValue<LoveLetter[]>(STORAGE_KEY, demoLetters)
+      .then((saved) => {
+        if (!active) return;
+        setLetters(saved);
+        setSelectedId(saved[0]?.id ?? null);
+      })
+      .catch((cause: unknown) => { if (active) setLoadError(cause instanceof Error ? cause.message : 'Could not load your letters.'); });
+    return () => { active = false; };
   }, []);
 
   const selected = letters.find((letter) => letter.id === selectedId) ?? letters[0];
-  const removeLetter = (letter: LoveLetter) => {
+  const removeLetter = async (letter: LoveLetter) => {
     if (!window.confirm(`Delete “${letter.title}”?`)) return;
     const next = letters.filter((item) => item.id !== letter.id);
-    saveLocalList(STORAGE_KEY, next);
-    setLetters(next);
-    setSelectedId(next[0]?.id ?? null);
+    try {
+      await saveCloudValue(STORAGE_KEY, next);
+      setLetters(next);
+      setSelectedId(next[0]?.id ?? null);
+    } catch (cause) {
+      window.alert(cause instanceof Error ? cause.message : 'Could not delete the letter.');
+    }
   };
 
   return (
@@ -67,6 +66,7 @@ export default function LettersPage() {
               <Link href="/letters/new"><PenLine className="mr-2 h-4 w-4" /> Write a letter</Link>
             </Button>
           </div>
+          {loadError && <p role="alert" className="mb-4 rounded-lg border border-destructive/30 bg-white p-3 text-sm text-destructive">{loadError}</p>}
           {!letters.length ? <EmptyState icon={Mail} title="No letters yet" message="Write the first note for your story." /> :
             <div className="grid gap-6 lg:grid-cols-[.8fr_1.5fr]">
               <div className="space-y-3">

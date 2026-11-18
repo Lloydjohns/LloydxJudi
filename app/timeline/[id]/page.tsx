@@ -13,10 +13,9 @@ import { formatChapterDateRange } from '@/lib/date-utils';
 import { format } from 'date-fns';
 import { useEffect, useMemo, useState } from 'react';
 import type { Memory, TimelineChapterOverride } from '@/lib/types';
-import { loadLocalList, saveLocalList } from '@/lib/local-data';
-
-const CHAPTER_STORAGE_KEY = 'llodxjudi-timeline-chapters';
-const MEMORY_STORAGE_KEY = 'llodxjudi-memories';
+import { loadCloudValue, saveCloudValue, STORY_COLLECTION_KEYS } from '@/lib/story-cloud';
+import { StoryImage } from '@/components/media/story-image';
+import { StoryVideo } from '@/components/media/story-video';
 
 export default function ChapterDetailPage() {
   const params = useParams();
@@ -26,18 +25,27 @@ export default function ChapterDetailPage() {
   const baseChapter = chapters.find((c) => c.id === chapterId);
   const [chapterOverride, setChapterOverride] = useState<TimelineChapterOverride | null>(null);
   const [memories, setMemories] = useState<Memory[]>(demoMemories);
+  const [loadError, setLoadError] = useState('');
 
   useEffect(() => {
     if (!baseChapter) {
       notFound();
       return;
     }
-
-    setChapterOverride(
-      loadLocalList<TimelineChapterOverride>(CHAPTER_STORAGE_KEY, [])
-        .find((item) => item.chapterId === chapterId) ?? null
-    );
-    setMemories(loadLocalList<Memory>(MEMORY_STORAGE_KEY, demoMemories));
+    let active = true;
+    Promise.all([
+      loadCloudValue<TimelineChapterOverride[]>(STORY_COLLECTION_KEYS.timelineChapters, []),
+      loadCloudValue<Memory[]>(STORY_COLLECTION_KEYS.memories, demoMemories),
+    ])
+      .then(([overrides, savedMemories]) => {
+        if (!active) return;
+        setChapterOverride(overrides.find((item) => item.chapterId === chapterId) ?? null);
+        setMemories(savedMemories);
+      })
+      .catch((cause: unknown) => {
+        if (active) setLoadError(cause instanceof Error ? cause.message : 'Could not load this chapter.');
+      });
+    return () => { active = false; };
   }, [baseChapter, chapterId]);
 
   const chapter = baseChapter
@@ -55,16 +63,21 @@ export default function ChapterDetailPage() {
 
   const dateRange = formatChapterDateRange(anniversaryDate, chapter.monthNumber);
 
-  const deleteMemory = (memory: Memory) => {
+  const deleteMemory = async (memory: Memory) => {
     if (!window.confirm(`Delete “${memory.title}” from this chapter?`)) return;
     const next = memories.filter((item) => item.id !== memory.id);
-    saveLocalList(MEMORY_STORAGE_KEY, next);
-    setMemories(next);
+    try {
+      await saveCloudValue(STORY_COLLECTION_KEYS.memories, next);
+      setMemories(next);
+    } catch (cause) {
+      window.alert(cause instanceof Error ? cause.message : 'Could not delete the memory.');
+    }
   };
 
   return (
     <AppShell>
       <div className="mx-auto max-w-4xl px-4 py-12 sm:px-6">
+        {loadError && <p role="alert" className="mb-4 rounded-lg border border-destructive/30 bg-white p-3 text-sm text-destructive">{loadError}</p>}
         <Button asChild variant="ghost" size="sm" className="mb-6">
           <Link href="/timeline">
             <ArrowLeft className="mr-2 h-4 w-4" /> Back to timeline
@@ -75,7 +88,7 @@ export default function ChapterDetailPage() {
         {chapter.coverImage && (
           <div className="relative overflow-hidden rounded-2xl shadow-romantic mb-8 h-64 sm:h-80">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
+            <StoryImage
               src={chapter.coverImage}
               alt={chapter.title}
               className="h-full w-full object-cover"
@@ -150,11 +163,16 @@ export default function ChapterDetailPage() {
                     {memory.imagePath && (
                       <div className="relative h-52 overflow-hidden sm:h-64">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
+                        <StoryImage
                           src={memory.imagePath}
                           alt={memory.title}
                           className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"
                         />
+                      </div>
+                    )}
+                    {memory.videoPath && (
+                      <div className="relative h-52 overflow-hidden bg-black sm:h-64">
+                        <StoryVideo src={memory.videoPath} controls playsInline preload="metadata" className="h-full w-full object-contain" aria-label={`Play video: ${memory.title}`} />
                       </div>
                     )}
                     <CardContent className="p-4 space-y-2">

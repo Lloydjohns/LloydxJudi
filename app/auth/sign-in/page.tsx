@@ -7,16 +7,31 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Heart, Mail, Lock, ArrowLeft, AlertCircle } from 'lucide-react';
+import { getSupabaseBrowserClient } from '@/lib/supabase-client';
+import { syncLocalStoryData } from '@/lib/story-cloud';
+import { useRouter } from 'next/navigation';
 
 export default function SignInPage() {
+  const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setTimeout(() => setLoading(false), 1000);
+    setError('');
+    try {
+      const supabase = getSupabaseBrowserClient();
+      const { error: signInError } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+      if (signInError) throw signInError;
+      await syncLocalStoryData();
+      router.replace('/home');
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not sign in.');
+      setLoading(false);
+    }
   };
 
   return (
@@ -67,6 +82,7 @@ export default function SignInPage() {
                   />
                 </div>
               </div>
+              {error && <p role="alert" className="flex items-start gap-2 text-sm text-destructive"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />{error}</p>}
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">No account?</span>
                 <Link href="/auth/sign-up" className="text-primary hover:underline font-medium">
@@ -79,12 +95,12 @@ export default function SignInPage() {
                 size="lg"
                 disabled={loading}
               >
-                {loading ? 'Signing in...' : 'Sign In'}
+                {loading ? 'Signing in and syncing...' : 'Sign In'}
               </Button>
             </form>
             <div className="mt-4 flex items-start gap-2 rounded-lg bg-muted/40 px-3 py-2.5 text-xs text-muted-foreground">
               <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
-              <span>Authentication is not yet active. It arrives in Milestone 2 with Supabase Auth.</span>
+              <span>Use the same account on each device to open your shared story.</span>
             </div>
           </CardContent>
         </Card>

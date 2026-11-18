@@ -3,9 +3,11 @@
 import React, { createContext, useContext, useState, useRef, useCallback, useEffect, ReactNode } from 'react';
 import type { PlaylistTrack } from '@/lib/types';
 import { demoPlaylistTracks } from '@/lib/demo-data';
-import { makeLocalId, saveLocalList } from '@/lib/local-data';
+import { makeLocalId } from '@/lib/local-data';
+import { loadCloudValue, saveCloudValue, STORY_COLLECTION_KEYS } from '@/lib/story-cloud';
+import { getSupabaseBrowserClient } from '@/lib/supabase-client';
 
-const STORAGE_KEY = 'llodxjudi-playlist';
+const STORAGE_KEY = STORY_COLLECTION_KEYS.playlist;
 const previousDefaultSongs = [
   ['Perfect', 'Ed Sheeran'],
   ['All of Me', 'John Legend'],
@@ -50,6 +52,7 @@ interface MusicPlayerState {
 }
 
 interface MusicPlayerContextValue extends MusicPlayerState {
+  isPlaylistReady: boolean;
   play: () => void;
   pause: () => void;
   togglePlay: () => void;
@@ -86,14 +89,21 @@ export function MusicPlayerProvider({ children }: { children: ReactNode }) {
   const [audioError, setAudioError] = useState<string | null>(null);
   const shuffleOrderRef = useRef<number[]>([]);
   const [hasLoadedTracks, setHasLoadedTracks] = useState(false);
+  const [canSaveTracks, setCanSaveTracks] = useState(false);
+  const saveQueueRef = useRef<Promise<void>>(Promise.resolve());
 
   const currentTrack = tracks[currentTrackIndex] || null;
 
   useEffect(() => {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (raw !== null) {
+    let active = true;
+    let loadVersion = 0;
+    const loadTracks = async () => {
+      const currentVersion = ++loadVersion;
+      setCanSaveTracks(false);
+      setHasLoadedTracks(false);
       try {
-        const savedTracks: unknown = JSON.parse(raw);
+        const savedTracks = await loadCloudValue<unknown>(STORAGE_KEY, demoPlaylistTracks);
+        if (!active || currentVersion !== loadVersion) return;
         if (Array.isArray(savedTracks) && savedTracks.every(isPlaylistTrack)) {
           const isPreviousDefault = savedTracks.length === previousDefaultSongs.length
             && savedTracks.every((track, index) => (
@@ -102,19 +112,56 @@ export function MusicPlayerProvider({ children }: { children: ReactNode }) {
               && track.artist === previousDefaultSongs[index][1]
             ));
           setTracks(isPreviousDefault ? demoPlaylistTracks : savedTracks);
+          setCanSaveTracks(true);
         } else {
-          setAudioError('Saved playlist data is invalid.');
+          throw new Error('Saved playlist data is invalid.');
         }
-      } catch {
-        setAudioError('Saved playlist data could not be read.');
+        setAudioError(null);
+      } catch (cause) {
+        if (active && currentVersion === loadVersion) {
+          setAudioError(cause instanceof Error ? cause.message : 'Could not load the cloud playlist.');
+        }
+      } finally {
+        if (active && currentVersion === loadVersion) setHasLoadedTracks(true);
       }
+    };
+
+    try {
+      const supabase = getSupabaseBrowserClient();
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+        if (event === 'INITIAL_SESSION' && !session) {
+          setHasLoadedTracks(true);
+          return;
+        }
+        if (event === 'SIGNED_IN' || (event === 'INITIAL_SESSION' && session)) {
+          window.setTimeout(() => { void loadTracks(); }, 0);
+        }
+        if (event === 'SIGNED_OUT') {
+          loadVersion += 1;
+          setCanSaveTracks(false);
+          setTracks(demoPlaylistTracks);
+          setHasLoadedTracks(true);
+        }
+      });
+      return () => {
+        active = false;
+        subscription.unsubscribe();
+      };
+    } catch (cause) {
+      setAudioError(cause instanceof Error ? cause.message : 'Could not connect to the cloud playlist.');
+      setHasLoadedTracks(true);
+      return () => { active = false; };
     }
-    setHasLoadedTracks(true);
   }, []);
 
   useEffect(() => {
-    if (hasLoadedTracks) saveLocalList(STORAGE_KEY, tracks);
-  }, [tracks, hasLoadedTracks]);
+    if (!hasLoadedTracks || !canSaveTracks) return;
+    saveQueueRef.current = saveQueueRef.current
+      .then(() => saveCloudValue(STORAGE_KEY, tracks))
+      .catch((cause: unknown) => {
+      setAudioError(cause instanceof Error ? cause.message : 'Could not save the playlist to the cloud.');
+      });
+  }, [tracks, hasLoadedTracks, canSaveTracks]);
 
   const getNextIndex = useCallback(
     (direction: 1 | -1) => {
@@ -243,6 +290,7 @@ export function MusicPlayerProvider({ children }: { children: ReactNode }) {
 
   const value: MusicPlayerContextValue = {
     tracks,
+    isPlaylistReady: canSaveTracks,
     currentTrackIndex,
     isPlaying,
     volume,

@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import {
   Home,
@@ -17,8 +18,9 @@ import {
   Menu,
   X,
   Mail,
-  LockKeyhole,
+  LogOut,
 } from 'lucide-react';
+import { getSupabaseBrowserClient } from '@/lib/supabase-client';
 
 const navItems = [
   { href: '/home', label: 'Home', icon: Home },
@@ -32,8 +34,21 @@ const navItems = [
 ];
 
 export function Navbar() {
+  const router = useRouter();
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [signOutError, setSignOutError] = useState('');
+
+  const signOut = async () => {
+    setSignOutError('');
+    try {
+      const { error } = await getSupabaseBrowserClient().auth.signOut();
+      if (error) throw error;
+      router.replace('/auth/sign-in');
+    } catch (cause) {
+      setSignOutError(cause instanceof Error ? `Could not sign out: ${cause.message}` : 'Could not sign out.');
+    }
+  };
 
   return (
     <header className="sticky top-0 z-40 border-b border-primary/15 bg-[#fff9f8]/90 backdrop-blur-xl">
@@ -68,10 +83,9 @@ export function Navbar() {
         </nav>
 
         <div className="hidden items-center gap-2 md:flex">
-          <Link href="/" className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" aria-label="Return to the password screen">
-            <LockKeyhole className="h-4 w-4" />
-            Re-enter
-          </Link>
+          <button type="button" onClick={signOut} className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
+            <LogOut className="h-4 w-4" />Sign out
+          </button>
           <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#ead8dc] text-xs font-semibold text-wine" aria-label="Lloyd">L</span>
         </div>
 
@@ -108,10 +122,10 @@ export function Navbar() {
                 </Link>
               );
             })}
-            <Link href="/" onClick={() => setMobileOpen(false)} className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
-              <LockKeyhole className="h-4 w-4" />
-              Re-enter password
-            </Link>
+            <button type="button" onClick={() => { setMobileOpen(false); void signOut(); }} className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
+              <LogOut className="h-4 w-4" />Sign out
+            </button>
+            {signOutError && <p role="alert" className="px-3 py-2 text-xs text-destructive">{signOutError}</p>}
           </nav>
         </div>
       )}

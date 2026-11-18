@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { AppShell } from '@/components/layout/app-shell';
 import { Card, CardContent } from '@/components/ui/card';
@@ -9,16 +9,36 @@ import { Badge } from '@/components/ui/badge';
 import { Sparkles, RefreshCw, Calendar, MapPin, ArrowRight, Heart } from 'lucide-react';
 import { demoMemories } from '@/lib/demo-data';
 import { format } from 'date-fns';
+import type { Memory } from '@/lib/types';
+import { loadCloudValue, STORY_COLLECTION_KEYS } from '@/lib/story-cloud';
+import { StoryImage } from '@/components/media/story-image';
 
 export default function SurprisePage() {
-  const [randomMemory, setRandomMemory] = useState<typeof demoMemories[0] | null>(null);
+  const [memories, setMemories] = useState<Memory[]>(demoMemories);
+  const [randomMemory, setRandomMemory] = useState<Memory | null>(null);
   const [isRevealing, setIsRevealing] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+
+  useEffect(() => {
+    let active = true;
+    loadCloudValue<Memory[]>(STORY_COLLECTION_KEYS.memories, demoMemories)
+      .then((savedMemories) => { if (active) setMemories(savedMemories); })
+      .catch((cause: unknown) => {
+        if (!active) return;
+        setMemories([]);
+        setLoadError(cause instanceof Error ? cause.message : 'Could not load your memories.');
+      })
+      .finally(() => { if (active) setIsLoading(false); });
+    return () => { active = false; };
+  }, []);
 
   const revealSurprise = () => {
+    if (!memories.length) return;
     setIsRevealing(true);
     setTimeout(() => {
-      const randomIndex = Math.floor(Math.random() * demoMemories.length);
-      setRandomMemory(demoMemories[randomIndex]);
+      const randomIndex = Math.floor(Math.random() * memories.length);
+      setRandomMemory(memories[randomIndex]);
       setIsRevealing(false);
     }, 800);
   };
@@ -39,6 +59,7 @@ export default function SurprisePage() {
         </div>
 
         <div className="mt-10">
+          {loadError && <p role="alert" className="mb-4 text-center text-sm text-destructive">{loadError}</p>}
           {!randomMemory && !isRevealing && (
             <Card className="border-primary/15 shadow-soft bg-blush/20">
               <CardContent className="p-12 text-center">
@@ -51,9 +72,10 @@ export default function SurprisePage() {
                     onClick={revealSurprise}
                     size="lg"
                     className="bg-gradient-wine text-primary-foreground hover:opacity-90 shadow-soft"
+                    disabled={isLoading || memories.length === 0}
                   >
                     <Sparkles className="h-5 w-5 mr-2" />
-                    Reveal Surprise
+                    {isLoading ? 'Loading memories...' : memories.length ? 'Reveal Surprise' : 'No memories yet'}
                   </Button>
                 </div>
               </CardContent>
@@ -80,12 +102,7 @@ export default function SurprisePage() {
               <Card className="border-primary/20 shadow-romantic overflow-hidden">
                 {randomMemory.imagePath && (
                   <div className="relative h-64 sm:h-80 overflow-hidden">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={randomMemory.imagePath}
-                      alt={randomMemory.title}
-                      className="h-full w-full object-cover"
-                    />
+                    <StoryImage src={randomMemory.imagePath} alt={randomMemory.title} className="h-full w-full object-cover" />
                     <div className="absolute inset-0 bg-gradient-to-t from-foreground/60 to-transparent" />
                     <div className="absolute top-4 right-4">
                       <Badge className="bg-primary/90 text-primary-foreground">

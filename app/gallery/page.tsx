@@ -15,7 +15,9 @@ import { demoMemories, getDemoChapters, DEMO_ANNIVERSARY_DATE } from '@/lib/demo
 import type { Memory } from '@/lib/types';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { saveLocalList } from '@/lib/local-data';
+import { loadCloudValue, saveCloudValue } from '@/lib/story-cloud';
+import { StoryImage } from '@/components/media/story-image';
+import { StoryVideo } from '@/components/media/story-video';
 
 const ALL_TAGS = ['milestone', 'travel', 'funny', 'first-date'];
 const FILTER_TAGS = ['all', ...ALL_TAGS];
@@ -39,30 +41,28 @@ export default function GalleryPage() {
   const [dateTo, setDateTo] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [videoIndex, setVideoIndex] = useState(0);
+  const [loadError, setLoadError] = useState('');
   const touchStart = useRef<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(demoMemories));
-      setSavedMemories(demoMemories);
-      return;
-    }
-    try {
-      const parsed = JSON.parse(raw) as Memory[];
-      setSavedMemories(Array.isArray(parsed) ? parsed : []);
-    } catch {
-      setSavedMemories([]);
-    }
+    let active = true;
+    loadCloudValue<Memory[]>(STORAGE_KEY, demoMemories)
+      .then((memories) => { if (active) setSavedMemories(memories); })
+      .catch((cause: unknown) => { if (active) setLoadError(cause instanceof Error ? cause.message : 'Could not load memories.'); });
+    return () => { active = false; };
   }, []);
 
   const allMemories = savedMemories;
 
-  const deleteMemory = (memory: Memory) => {
+  const deleteMemory = async (memory: Memory) => {
     if (!window.confirm(`Delete “${memory.title}”?`)) return;
     const next = savedMemories.filter((item) => item.id !== memory.id);
-    saveLocalList(STORAGE_KEY, next);
-    setSavedMemories(next);
+    try {
+      await saveCloudValue(STORAGE_KEY, next);
+      setSavedMemories(next);
+    } catch (cause) {
+      window.alert(cause instanceof Error ? cause.message : 'Could not delete the memory.');
+    }
   };
 
   const filteredMemories = useMemo(() => {
@@ -124,6 +124,7 @@ export default function GalleryPage() {
             subtitle="All the moments, in one place."
             center={false}
           />
+          {loadError && <p role="alert" className="mt-4 rounded-lg border border-destructive/30 bg-white p-3 text-sm text-destructive">{loadError}</p>}
           <Button asChild size="sm" className="shrink-0 bg-gradient-wine text-white hover:opacity-90">
             <Link href="/memories/new"><Plus className="mr-1.5 h-4 w-4" /> Add memory</Link>
           </Button>
@@ -239,7 +240,7 @@ export default function GalleryPage() {
                   style={{ animationDelay: `${Math.min(index * 0.05, 0.4)}s` }}
                 >
                   {memory.videoPath ? (
-                    <video
+                    <StoryVideo
                       src={memory.videoPath}
                       className="relative z-10 h-full w-full bg-black object-contain"
                       controls
@@ -248,8 +249,7 @@ export default function GalleryPage() {
                       aria-label={`Play video: ${memory.title}`}
                     />
                   ) : memory.imagePath ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
+                    <StoryImage
                       src={memory.imagePath}
                       alt={memory.title}
                       className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-110"
@@ -310,7 +310,7 @@ export default function GalleryPage() {
             onTouchStart={handleTouchStart}
             onTouchEnd={handleTouchEnd}
           >
-            <video
+            <StoryVideo
               key={activeVideo.id}
               className="relative z-10 h-full w-full object-contain"
               src={activeVideo.src}
@@ -320,9 +320,7 @@ export default function GalleryPage() {
               playsInline
               preload="metadata"
               aria-label={`Play video: ${activeVideo.title}`}
-            >
-              Your browser does not support the video tag.
-            </video>
+            />
             <Button
               type="button"
               variant="secondary"

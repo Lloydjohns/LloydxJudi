@@ -11,9 +11,10 @@ import { Calendar, Cake, MapPin, Gift, Heart, Save, Pencil, Trash2, X } from 'lu
 import { demoSpecialDates } from '@/lib/demo-data';
 import { format } from 'date-fns';
 import { useEffect, useMemo, useState } from 'react';
-import { makeLocalId, saveLocalList } from '@/lib/local-data';
+import { makeLocalId } from '@/lib/local-data';
+import { loadCloudValue, saveCloudValue, STORY_COLLECTION_KEYS } from '@/lib/story-cloud';
 
-const STORAGE_KEY = 'llodxjudi-special-dates';
+const STORAGE_KEY = STORY_COLLECTION_KEYS.specialDates;
 
 export default function SpecialDatesPage() {
   const now = new Date();
@@ -22,20 +23,15 @@ export default function SpecialDatesPage() {
   const [eventDate, setEventDate] = useState('');
   const [notes, setNotes] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState('');
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(demoSpecialDates));
-      setCustomDates(demoSpecialDates);
-      return;
-    }
-    try {
-      const parsed = JSON.parse(raw) as typeof demoSpecialDates;
-      setCustomDates(Array.isArray(parsed) ? parsed : []);
-    } catch {
-      setCustomDates([]);
-    }
+    let active = true;
+    loadCloudValue(STORAGE_KEY, demoSpecialDates)
+      .then((dates) => { if (active) setCustomDates(dates); })
+      .catch((cause: unknown) => { if (active) setSaveError(cause instanceof Error ? cause.message : 'Could not load special dates.'); });
+    return () => { active = false; };
   }, []);
 
   const sortedDates = useMemo(() => {
@@ -55,7 +51,7 @@ export default function SpecialDatesPage() {
     return Gift;
   };
 
-  const handleSave = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSave = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!title.trim() || !eventDate) return;
 
@@ -72,12 +68,20 @@ export default function SpecialDatesPage() {
     const next = editingId
       ? customDates.map((date) => date.id === editingId ? { ...newDate, createdAt: date.createdAt } : date)
       : [newDate, ...customDates];
-    saveLocalList(STORAGE_KEY, next);
-    setCustomDates(next);
-    setTitle('');
-    setEventDate('');
-    setNotes('');
-    setEditingId(null);
+    setSaving(true);
+    setSaveError('');
+    try {
+      await saveCloudValue(STORAGE_KEY, next);
+      setCustomDates(next);
+      setTitle('');
+      setEventDate('');
+      setNotes('');
+      setEditingId(null);
+    } catch (cause) {
+      setSaveError(cause instanceof Error ? cause.message : 'Could not save this date.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const editDate = (date: (typeof demoSpecialDates)[number]) => {
@@ -88,14 +92,18 @@ export default function SpecialDatesPage() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const deleteDate = (id: string) => {
+  const deleteDate = async (id: string) => {
     if (!window.confirm('Delete this special date?')) return;
     const next = customDates.filter((date) => date.id !== id);
-    saveLocalList(STORAGE_KEY, next);
-    setCustomDates(next);
-    if (editingId === id) {
-      setEditingId(null);
-      setTitle(''); setEventDate(''); setNotes('');
+    try {
+      await saveCloudValue(STORAGE_KEY, next);
+      setCustomDates(next);
+      if (editingId === id) {
+        setEditingId(null);
+        setTitle(''); setEventDate(''); setNotes('');
+      }
+    } catch (cause) {
+      window.alert(cause instanceof Error ? cause.message : 'Could not delete this date.');
     }
   };
 
@@ -146,7 +154,8 @@ export default function SpecialDatesPage() {
                 </div>
               </div>
               <div className="flex gap-2">
-              <Button type="submit" className="bg-gradient-wine text-white hover:opacity-90">
+              {saveError && <p role="alert" className="text-sm text-destructive">{saveError}</p>}
+              <Button type="submit" disabled={saving} className="bg-gradient-wine text-white hover:opacity-90">
                 <Save className="mr-2 h-4 w-4" /> {editingId ? 'Update date' : 'Save date'}
               </Button>
               {editingId && <Button type="button" variant="outline" onClick={() => { setEditingId(null); setTitle(''); setEventDate(''); setNotes(''); }}><X className="mr-2 h-4 w-4" />Cancel</Button>}

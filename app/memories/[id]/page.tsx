@@ -12,9 +12,9 @@ import { demoMemories, getDemoChapters, DEMO_ANNIVERSARY_DATE } from '@/lib/demo
 import { format } from 'date-fns';
 import { useEffect, useState } from 'react';
 import type { Memory } from '@/lib/types';
-import { loadLocalList } from '@/lib/local-data';
-
-const STORAGE_KEY = 'llodxjudi-memories';
+import { loadCloudValue, STORY_COLLECTION_KEYS } from '@/lib/story-cloud';
+import { StoryImage } from '@/components/media/story-image';
+import { StoryVideo } from '@/components/media/story-video';
 
 export default function MemoryDetailPage() {
   const params = useParams();
@@ -23,10 +23,15 @@ export default function MemoryDetailPage() {
   const chapters = getDemoChapters(anniversaryDate);
   const [memories, setMemories] = useState<Memory[]>(demoMemories);
   const [loaded, setLoaded] = useState(false);
+  const [loadError, setLoadError] = useState('');
 
   useEffect(() => {
-    setMemories(loadLocalList<Memory>(STORAGE_KEY, demoMemories));
-    setLoaded(true);
+    let active = true;
+    loadCloudValue<Memory[]>(STORY_COLLECTION_KEYS.memories, demoMemories)
+      .then((savedMemories) => { if (active) setMemories(savedMemories); })
+      .catch((cause: unknown) => { if (active) setLoadError(cause instanceof Error ? cause.message : 'Could not load this memory.'); })
+      .finally(() => { if (active) setLoaded(true); });
+    return () => { active = false; };
   }, []);
 
   const sortedMemories = [...memories].sort(
@@ -44,6 +49,9 @@ export default function MemoryDetailPage() {
   const currentIndex = displayMemories.findIndex((item) => item.id === memoryId);
 
   if (!loaded) return null;
+  if (loadError) {
+    return <AppShell><p role="alert" className="mx-auto max-w-3xl px-4 py-12 text-destructive">{loadError}</p></AppShell>;
+  }
   if (!memory) notFound();
 
   const prevMemory = currentIndex > 0 ? displayMemories[currentIndex - 1] : null;
@@ -62,12 +70,12 @@ export default function MemoryDetailPage() {
         {/* Hero image */}
         {memory.imagePath && (
           <div className="relative overflow-hidden rounded-2xl shadow-romantic mb-8">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={memory.imagePath}
-              alt={memory.title}
-              className="w-full max-h-[500px] object-cover"
-            />
+            <StoryImage src={memory.imagePath} alt={memory.title} className="w-full max-h-[500px] object-cover" />
+          </div>
+        )}
+        {memory.videoPath && (
+          <div className="mb-8 overflow-hidden rounded-2xl bg-black shadow-romantic">
+            <StoryVideo src={memory.videoPath} controls playsInline preload="metadata" className="max-h-[500px] w-full" aria-label={`Play video: ${memory.title}`} />
           </div>
         )}
 

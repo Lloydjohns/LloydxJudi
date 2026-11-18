@@ -22,10 +22,13 @@ import {
 import { format, parseISO } from 'date-fns';
 import { useEffect, useState } from 'react';
 import type { TimelineChapterOverride, TimelineEvent } from '@/lib/types';
-import { loadLocalList, makeLocalId, saveLocalList } from '@/lib/local-data';
+import { makeLocalId } from '@/lib/local-data';
+import { loadCloudValue, saveCloudValue, STORY_COLLECTION_KEYS } from '@/lib/story-cloud';
+import { StoryImage } from '@/components/media/story-image';
 
-const STORAGE_KEY = 'llodxjudi-timeline-events';
-const CHAPTER_STORAGE_KEY = 'llodxjudi-timeline-chapters';
+const STORAGE_KEY = STORY_COLLECTION_KEYS.timelineEvents;
+const MEMORY_STORAGE_KEY = STORY_COLLECTION_KEYS.memories;
+const CHAPTER_STORAGE_KEY = STORY_COLLECTION_KEYS.timelineChapters;
 
 export default function TimelinePage() {
   const anniversaryDate = new Date(DEMO_ANNIVERSARY_DATE);
@@ -45,11 +48,26 @@ export default function TimelinePage() {
   const [chapterIntro, setChapterIntro] = useState('');
   const [chapterImageUrl, setChapterImageUrl] = useState('');
   const [chapterLetter, setChapterLetter] = useState('');
+  const [saveError, setSaveError] = useState('');
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    setEvents(loadLocalList<TimelineEvent>(STORAGE_KEY, []));
-    setMemories(loadLocalList('llodxjudi-memories', demoMemories));
-    setChapterOverrides(loadLocalList<TimelineChapterOverride>(CHAPTER_STORAGE_KEY, []));
+    let active = true;
+    Promise.all([
+      loadCloudValue<TimelineEvent[]>(STORAGE_KEY, []),
+      loadCloudValue(MEMORY_STORAGE_KEY, demoMemories),
+      loadCloudValue<TimelineChapterOverride[]>(CHAPTER_STORAGE_KEY, []),
+    ])
+      .then(([savedEvents, savedMemories, savedOverrides]) => {
+        if (!active) return;
+        setEvents(savedEvents);
+        setMemories(savedMemories);
+        setChapterOverrides(savedOverrides);
+      })
+      .catch((cause: unknown) => {
+        if (active) setSaveError(cause instanceof Error ? cause.message : 'Could not load timeline data from the cloud.');
+      });
+    return () => { active = false; };
   }, []);
 
   const chapters = baseChapters.map((chapter) => {
@@ -67,7 +85,7 @@ export default function TimelinePage() {
     setImageUrl('');
   };
 
-  const saveEvent = (event: React.FormEvent<HTMLFormElement>) => {
+  const saveEvent = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const trimmedTitle = title.trim();
     const trimmedStory = story.trim();
@@ -85,9 +103,17 @@ export default function TimelinePage() {
     const next = existing
       ? events.map((item) => item.id === existing.id ? entry : item)
       : [...events, entry];
-    saveLocalList(STORAGE_KEY, next);
-    setEvents(next);
-    resetForm();
+    setSaving(true);
+    setSaveError('');
+    try {
+      await saveCloudValue(STORAGE_KEY, next);
+      setEvents(next);
+      resetForm();
+    } catch (cause) {
+      setSaveError(cause instanceof Error ? cause.message : 'Could not save this moment.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const editEvent = (entry: TimelineEvent) => {
@@ -99,12 +125,16 @@ export default function TimelinePage() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const deleteEvent = (entry: TimelineEvent) => {
+  const deleteEvent = async (entry: TimelineEvent) => {
     if (!window.confirm(`Delete “${entry.title}” from the timeline?`)) return;
     const next = events.filter((item) => item.id !== entry.id);
-    saveLocalList(STORAGE_KEY, next);
-    setEvents(next);
-    if (editingId === entry.id) resetForm();
+    try {
+      await saveCloudValue(STORAGE_KEY, next);
+      setEvents(next);
+      if (editingId === entry.id) resetForm();
+    } catch (cause) {
+      window.alert(cause instanceof Error ? cause.message : 'Could not delete this moment.');
+    }
   };
 
   const resetChapterForm = () => {
@@ -124,7 +154,7 @@ export default function TimelinePage() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const saveChapter = (event: React.FormEvent<HTMLFormElement>) => {
+  const saveChapter = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const trimmedTitle = chapterTitle.trim();
     const trimmedIntro = chapterIntro.trim();
@@ -141,17 +171,29 @@ export default function TimelinePage() {
       ...chapterOverrides.filter((item) => item.chapterId !== editingChapterId),
       override,
     ];
-    saveLocalList(CHAPTER_STORAGE_KEY, next);
-    setChapterOverrides(next);
-    resetChapterForm();
+    setSaving(true);
+    setSaveError('');
+    try {
+      await saveCloudValue(CHAPTER_STORAGE_KEY, next);
+      setChapterOverrides(next);
+      resetChapterForm();
+    } catch (cause) {
+      setSaveError(cause instanceof Error ? cause.message : 'Could not save the chapter.');
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const resetChapter = (chapter: (typeof baseChapters)[number]) => {
+  const resetChapter = async (chapter: (typeof baseChapters)[number]) => {
     if (!window.confirm(`Reset “${chapter.title}” to its original content?`)) return;
     const next = chapterOverrides.filter((item) => item.chapterId !== chapter.id);
-    saveLocalList(CHAPTER_STORAGE_KEY, next);
-    setChapterOverrides(next);
-    if (editingChapterId === chapter.id) resetChapterForm();
+    try {
+      await saveCloudValue(CHAPTER_STORAGE_KEY, next);
+      setChapterOverrides(next);
+      if (editingChapterId === chapter.id) resetChapterForm();
+    } catch (cause) {
+      window.alert(cause instanceof Error ? cause.message : 'Could not reset the chapter.');
+    }
   };
 
   const sortedEvents = [...events].sort((a, b) => a.eventDate.localeCompare(b.eventDate));
@@ -164,6 +206,7 @@ export default function TimelinePage() {
           title="Our Timeline"
           subtitle="A month at a time, a lifetime of memories."
         />
+        {saveError && <p role="alert" className="mt-4 rounded-lg border border-destructive/30 bg-white p-3 text-sm text-destructive">{saveError}</p>}
 
         <Card className="mt-8 border-primary/15 shadow-soft">
           <CardContent className="p-5 sm:p-6">
@@ -196,9 +239,9 @@ export default function TimelinePage() {
                 )}
               </div>
               <div className="flex gap-2 sm:col-span-2">
-                <Button type="submit" className="bg-gradient-wine text-white hover:opacity-90">
+                <Button type="submit" disabled={saving} className="bg-gradient-wine text-white hover:opacity-90">
                   {editingId ? <Save className="mr-2 h-4 w-4" /> : <Plus className="mr-2 h-4 w-4" />}
-                  {editingId ? 'Update moment' : 'Add moment'}
+                  {saving ? 'Saving to cloud...' : editingId ? 'Update moment' : 'Add moment'}
                 </Button>
                 {editingId && <Button type="button" variant="outline" onClick={resetForm}><X className="mr-2 h-4 w-4" />Cancel</Button>}
               </div>
@@ -236,7 +279,7 @@ export default function TimelinePage() {
                   <Textarea id="chapter-letter" value={chapterLetter} onChange={(event) => setChapterLetter(event.target.value)} />
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <Button type="submit" className="bg-gradient-wine text-white hover:opacity-90"><Save className="mr-2 h-4 w-4" />Update chapter</Button>
+                  <Button type="submit" disabled={saving} className="bg-gradient-wine text-white hover:opacity-90"><Save className="mr-2 h-4 w-4" />{saving ? 'Saving to cloud...' : 'Update chapter'}</Button>
                   <Button type="button" variant="outline" onClick={resetChapterForm}><X className="mr-2 h-4 w-4" />Cancel</Button>
                 </div>
               </form>
@@ -330,7 +373,7 @@ export default function TimelinePage() {
                           {chapter.coverImage && (
                             <div className="relative h-52 overflow-hidden sm:h-64">
                               {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img
+                              <StoryImage
                                 src={chapter.coverImage}
                                 alt={chapter.title}
                                 className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"

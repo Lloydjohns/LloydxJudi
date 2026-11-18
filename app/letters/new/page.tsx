@@ -11,9 +11,10 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { ArrowLeft, CalendarDays, Save } from 'lucide-react';
 import type { LoveLetter } from '@/lib/types';
-import { loadLocalList, makeLocalId, saveLocalList } from '@/lib/local-data';
+import { makeLocalId } from '@/lib/local-data';
+import { loadCloudValue, saveCloudValue, STORY_COLLECTION_KEYS } from '@/lib/story-cloud';
 
-const STORAGE_KEY = 'llodxjudi-letters';
+const STORAGE_KEY = STORY_COLLECTION_KEYS.letters;
 
 export default function NewLetterPage() {
   const router = useRouter();
@@ -22,42 +23,61 @@ export default function NewLetterPage() {
   const [body, setBody] = useState('');
   const [revealAt, setRevealAt] = useState('');
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
 
   useEffect(() => {
     const currentEditId = new URLSearchParams(window.location.search).get('edit');
     setEditId(currentEditId);
     if (!currentEditId) return;
-    const letter = loadLocalList<LoveLetter>(STORAGE_KEY, []).find((item) => item.id === currentEditId);
-    if (!letter) return;
-    setTitle(letter.title);
-    setBody(letter.body);
-    setRevealAt(letter.revealAt?.slice(0, 10) ?? '');
+    let active = true;
+    loadCloudValue<LoveLetter[]>(STORAGE_KEY, [])
+      .then((letters) => {
+        const letter = letters.find((item) => item.id === currentEditId);
+        if (!active) return;
+        if (!letter) {
+          setSaveError('This letter was not found in your shared story.');
+          return;
+        }
+        setTitle(letter.title);
+        setBody(letter.body);
+        setRevealAt(letter.revealAt?.slice(0, 10) ?? '');
+      })
+      .catch((cause: unknown) => { if (active) setSaveError(cause instanceof Error ? cause.message : 'Could not load this letter.'); });
+    return () => { active = false; };
   }, []);
 
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const trimmedTitle = title.trim();
     const trimmedBody = body.trim();
     if (!trimmedTitle || !trimmedBody) return;
 
-    const current = loadLocalList<LoveLetter>(STORAGE_KEY, []);
+    setSaving(true);
+    setSaveError('');
+    try {
+    const current = await loadCloudValue<LoveLetter[]>(STORAGE_KEY, []);
     const existing = current.find((letter) => letter.id === editId);
     const letter: LoveLetter = {
       id: existing?.id ?? makeLocalId('letter'),
-      coupleId: 'demo',
+      coupleId: existing?.coupleId ?? 'demo',
       title: trimmedTitle,
       body: trimmedBody,
       recipientUserId: null,
       revealAt: revealAt || null,
-      createdBy: 'demo',
+      createdBy: existing?.createdBy ?? 'demo',
       createdAt: existing?.createdAt ?? new Date().toISOString(),
     };
     const next = existing
       ? current.map((item) => item.id === existing.id ? letter : item)
       : [letter, ...current];
-    saveLocalList(STORAGE_KEY, next);
+    await saveCloudValue(STORAGE_KEY, next);
     setSaved(true);
     window.setTimeout(() => router.push('/letters'), 500);
+    } catch (cause) {
+      setSaveError(cause instanceof Error ? cause.message : 'Could not save this letter.');
+      setSaving(false);
+    }
   };
 
   return (
@@ -89,9 +109,10 @@ export default function NewLetterPage() {
                   </Label>
                   <Input id="reveal-at" type="date" value={revealAt} onChange={(event) => setRevealAt(event.target.value)} className="border-primary/20" />
                 </div>
-                <Button type="submit" className="w-full bg-gradient-wine text-white hover:opacity-90">
+                {saveError && <p role="alert" className="text-sm text-destructive">{saveError}</p>}
+                <Button type="submit" disabled={saving} className="w-full bg-gradient-wine text-white hover:opacity-90">
                   <Save className="mr-2 h-4 w-4" />
-                  {saved ? 'Saved...' : editId ? 'Update letter' : 'Save letter'}
+                  {saved ? 'Saved to cloud...' : saving ? 'Saving to cloud...' : editId ? 'Update letter' : 'Save letter'}
                 </Button>
               </form>
             </CardContent>

@@ -21,8 +21,10 @@ import {
 } from '@/lib/demo-data';
 import type { LoveLetter, Memory, TimelineEvent } from '@/lib/types';
 import { downloadStoryPdf } from '@/lib/story-pdf';
+import { loadCloudValue, saveCloudValue, STORY_COLLECTION_KEYS } from '@/lib/story-cloud';
+import { resolveStoryMediaUrl } from '@/lib/story-media';
 
-const PROFILE_KEY = 'llodxjudi-couple-profile';
+const PROFILE_KEY = STORY_COLLECTION_KEYS.coupleProfile;
 
 function getDefaultLetters(): LoveLetter[] {
   return getDemoChapters(new Date(DEMO_ANNIVERSARY_DATE))
@@ -47,42 +49,50 @@ export default function SettingsPage() {
   const [inviteStatus, setInviteStatus] = useState('');
   const [sendingInvite, setSendingInvite] = useState(false);
   const [exportStatus, setExportStatus] = useState('');
+  const [profileError, setProfileError] = useState('');
 
   useEffect(() => {
-    const raw = localStorage.getItem(PROFILE_KEY);
-    if (!raw) return;
-    try {
-      const profile = JSON.parse(raw) as { name?: string; anniversaryDate?: string };
-      if (profile.name) setCoupleName(profile.name);
-      if (profile.anniversaryDate) setAnniversaryDate(profile.anniversaryDate);
-    } catch {
-      setCoupleName(DEMO_COUPLE_NAME);
-      setAnniversaryDate(DEMO_ANNIVERSARY_DATE);
-    }
+    let active = true;
+    loadCloudValue<{ name?: string; anniversaryDate?: string }>(PROFILE_KEY, {
+      name: DEMO_COUPLE_NAME,
+      anniversaryDate: DEMO_ANNIVERSARY_DATE,
+    })
+      .then((profile) => {
+        if (!active) return;
+        if (profile.name) setCoupleName(profile.name);
+        if (profile.anniversaryDate) setAnniversaryDate(profile.anniversaryDate);
+      })
+      .catch((cause: unknown) => { if (active) setProfileError(cause instanceof Error ? cause.message : 'Could not load the couple profile.'); });
+    return () => { active = false; };
   }, []);
 
-  const saveProfile = (event: React.FormEvent<HTMLFormElement>) => {
+  const saveProfile = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    localStorage.setItem(PROFILE_KEY, JSON.stringify({ name: coupleName.trim(), anniversaryDate }));
-    setProfileSaved(true);
-    window.setTimeout(() => setProfileSaved(false), 2000);
+    setProfileError('');
+    try {
+      await saveCloudValue(PROFILE_KEY, { name: coupleName.trim(), anniversaryDate });
+      setProfileSaved(true);
+      window.setTimeout(() => setProfileSaved(false), 2000);
+    } catch (cause) {
+      setProfileError(cause instanceof Error ? cause.message : 'Could not save the profile.');
+    }
   };
 
-  const readList = <T,>(key: string, fallback: T[]): T[] => {
-    const raw = localStorage.getItem(key);
-    if (raw === null) return fallback;
-    const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed)) throw new Error(`Saved ${key} data is not a list.`);
-    return parsed as T[];
+  const getStoryCollections = async () => {
+    const [memories, letters, specialDates, playlist, timelineEvents, timelineChapters, profile] = await Promise.all([
+      loadCloudValue<Memory[]>(STORY_COLLECTION_KEYS.memories, demoMemories),
+      loadCloudValue<LoveLetter[]>(STORY_COLLECTION_KEYS.letters, getDefaultLetters()),
+      loadCloudValue(STORY_COLLECTION_KEYS.specialDates, demoSpecialDates),
+      loadCloudValue(STORY_COLLECTION_KEYS.playlist, demoPlaylistTracks),
+      loadCloudValue<TimelineEvent[]>(STORY_COLLECTION_KEYS.timelineEvents, []),
+      loadCloudValue(STORY_COLLECTION_KEYS.timelineChapters, []),
+      loadCloudValue<{ name?: string; anniversaryDate?: string }>(PROFILE_KEY, {
+        name: DEMO_COUPLE_NAME,
+        anniversaryDate: DEMO_ANNIVERSARY_DATE,
+      }),
+    ]);
+    return { memories, letters, specialDates, playlist, timelineEvents, timelineChapters, profile };
   };
-
-  const getStoryCollections = () => ({
-    memories: readList<Memory>('llodxjudi-memories', demoMemories),
-    letters: readList<LoveLetter>('llodxjudi-letters', getDefaultLetters()),
-    specialDates: readList('llodxjudi-special-dates', demoSpecialDates),
-    playlist: readList('llodxjudi-playlist', demoPlaylistTracks),
-    timelineEvents: readList<TimelineEvent>('llodxjudi-timeline-events', []),
-  });
 
   const invitePartner = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -105,17 +115,18 @@ export default function SettingsPage() {
     }
   };
 
-  const exportStory = () => {
+  const exportStory = async () => {
     try {
-      const collections = getStoryCollections();
+      const collections = await getStoryCollections();
       const blob = new Blob([JSON.stringify({
-        couple: { name: coupleName, anniversaryDate },
+        couple: collections.profile,
         exportedAt: new Date().toISOString(),
         'llodxjudi-memories': collections.memories,
         'llodxjudi-letters': collections.letters,
         'llodxjudi-special-dates': collections.specialDates,
         'llodxjudi-playlist': collections.playlist,
         'llodxjudi-timeline-events': collections.timelineEvents,
+        'llodxjudi-timeline-chapters': collections.timelineChapters,
       }, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -146,15 +157,17 @@ export default function SettingsPage() {
   const downloadPdf = async () => {
     setExportStatus('');
     try {
-      const collections = getStoryCollections();
-      const rawProfile = localStorage.getItem(PROFILE_KEY);
-      const profile = rawProfile ? JSON.parse(rawProfile) as { name?: string; anniversaryDate?: string } : {};
+      const collections = await getStoryCollections();
+      const memories = await Promise.all(collections.memories.map(async (memory) => ({
+        ...memory,
+        imagePath: memory.imagePath ? await resolveStoryMediaUrl(memory.imagePath) : null,
+      })));
       await downloadStoryPdf({
         couple: {
-          name: profile.name || coupleName,
-          anniversaryDate: profile.anniversaryDate || anniversaryDate,
+          name: collections.profile.name || coupleName,
+          anniversaryDate: collections.profile.anniversaryDate || anniversaryDate,
         },
-        memories: collections.memories,
+        memories,
         letters: collections.letters,
         timelineEvents: collections.timelineEvents,
       });
@@ -179,6 +192,7 @@ export default function SettingsPage() {
               <CardDescription>Your shared display name and anniversary date.</CardDescription>
             </CardHeader>
             <CardContent>
+              {profileError && <p role="alert" className="mb-4 text-sm text-destructive">{profileError}</p>}
               <form onSubmit={saveProfile} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="couple-name">Display Name</Label>
@@ -192,7 +206,7 @@ export default function SettingsPage() {
                   <Input id="anniversary-date" type="date" value={anniversaryDate} onChange={(event) => setAnniversaryDate(event.target.value)} required className="border-primary/20" />
                   <p className="flex items-center gap-1 text-xs text-muted-foreground">
                     <Lock className="h-3 w-3" />
-                    Saved in this browser.
+                    Saved to your shared account for all your devices.
                   </p>
                 </div>
                 <Button type="submit" className="bg-gradient-wine text-primary-foreground hover:opacity-90">
@@ -250,7 +264,7 @@ export default function SettingsPage() {
           <Card className="border-primary/15 shadow-soft">
             <CardHeader>
               <CardTitle className="font-serif-display text-2xl">Our Story</CardTitle>
-              <CardDescription>Download your browser-saved story, a QR code to this app, or a PDF with your photos and messages.</CardDescription>
+              <CardDescription>Download your cloud-saved story, a QR code to this app, or a PDF with your photos and messages.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
@@ -267,13 +281,13 @@ export default function SettingsPage() {
                   Download story PDF
                 </Button>
               </div>
-              <p className="text-xs text-muted-foreground">The QR code opens this app and does not transfer browser-only story data. Photos blocked by their host may appear as image links in the PDF.</p>
+              <p className="text-xs text-muted-foreground">The QR code opens this app; sign in with the same account on each device to access your shared story. Photos blocked by their host may appear as image links in the PDF.</p>
               {exportStatus && <p role="status" className="text-sm text-muted-foreground">{exportStatus}</p>}
             </CardContent>
           </Card>
 
           <p className="pb-4 text-center text-xs text-muted-foreground">
-            Your story data is stored locally in this browser.
+            Your story data is stored in your private cloud account.
           </p>
         </div>
       </div>

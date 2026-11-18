@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { AppShell } from '@/components/layout/app-shell';
 import { HeartDivider, SectionHeading } from '@/components/layout/shared';
@@ -19,6 +20,9 @@ import {
   MapPin,
 } from 'lucide-react';
 import { demoMemories, demoSpecialDates, DEMO_COUPLE_NAME, DEMO_ANNIVERSARY_DATE } from '@/lib/demo-data';
+import type { Memory, SpecialDate } from '@/lib/types';
+import { loadCloudValue, STORY_COLLECTION_KEYS } from '@/lib/story-cloud';
+import { StoryImage } from '@/components/media/story-image';
 import {
   getDaysTogether,
   getDaysUntilNextAnniversary,
@@ -31,14 +35,19 @@ import { format } from 'date-fns';
 export const dynamic = 'force-dynamic';
 
 export default function HomePage() {
-  const anniversaryDate = new Date(DEMO_ANNIVERSARY_DATE);
+  const [coupleName, setCoupleName] = useState(DEMO_COUPLE_NAME);
+  const [anniversaryDateText, setAnniversaryDateText] = useState(DEMO_ANNIVERSARY_DATE);
+  const [memories, setMemories] = useState<Memory[]>(demoMemories);
+  const [specialDates, setSpecialDates] = useState<SpecialDate[]>(demoSpecialDates);
+  const [loadError, setLoadError] = useState('');
+  const anniversaryDate = new Date(anniversaryDateText);
   const now = new Date();
   const daysTogether = getDaysTogether(anniversaryDate, now);
   const monthsTogether = getMonthsTogether(anniversaryDate, now);
   const daysUntilAnniversary = getDaysUntilNextAnniversary(anniversaryDate, now);
   const totalChapters = getTotalChapters(anniversaryDate, now);
-  const featuredMemory = demoMemories[0];
-  const latestMemories = [...demoMemories].sort(
+  const featuredMemory = memories[0];
+  const latestMemories = [...memories].sort(
     (a, b) => new Date(b.memoryDate).getTime() - new Date(a.memoryDate).getTime()
   );
   const latestMemory = latestMemories[0];
@@ -46,6 +55,29 @@ export default function HomePage() {
 
   const hour = now.getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
+
+  useEffect(() => {
+    let active = true;
+    Promise.all([
+      loadCloudValue<{ name?: string; anniversaryDate?: string }>(STORY_COLLECTION_KEYS.coupleProfile, {
+        name: DEMO_COUPLE_NAME,
+        anniversaryDate: DEMO_ANNIVERSARY_DATE,
+      }),
+      loadCloudValue<Memory[]>(STORY_COLLECTION_KEYS.memories, demoMemories),
+      loadCloudValue<SpecialDate[]>(STORY_COLLECTION_KEYS.specialDates, demoSpecialDates),
+    ])
+      .then(([profile, savedMemories, savedDates]) => {
+        if (!active) return;
+        if (profile.name) setCoupleName(profile.name);
+        if (profile.anniversaryDate) setAnniversaryDateText(profile.anniversaryDate);
+        setMemories(savedMemories);
+        setSpecialDates(savedDates);
+      })
+      .catch((cause: unknown) => {
+        if (active) setLoadError(cause instanceof Error ? cause.message : 'Could not load your shared story.');
+      });
+    return () => { active = false; };
+  }, []);
 
   return (
     <AppShell>
@@ -58,7 +90,7 @@ export default function HomePage() {
                 {greeting}, my love
               </p>
               <h1 className="mt-2 font-script text-5xl leading-tight text-wine sm:text-7xl animate-fade-in-up">
-                Hi, {DEMO_COUPLE_NAME.split(' ')[0]} ♡
+                Hi, {coupleName.split(' ')[0]} ♡
               </h1>
               <p className="mt-3 max-w-lg text-sm leading-6 text-muted-foreground sm:text-base animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
                 Every moment with you is a beautiful chapter. This is our little corner of the world.
@@ -114,14 +146,15 @@ export default function HomePage() {
               <CardContent className="p-5 sm:p-6">
                 <p className="text-xs font-semibold uppercase tracking-[0.22em] text-primary">Our birthdays</p>
                 <div className="mt-3 space-y-3">
-                  <div className="flex items-center justify-between rounded-xl bg-white/70 px-3 py-2">
-                    <span className="text-sm font-medium text-wine">Lloyd</span>
-                    <span className="text-sm text-muted-foreground">April 21</span>
-                  </div>
-                  <div className="flex items-center justify-between rounded-xl bg-white/70 px-3 py-2">
-                    <span className="text-sm font-medium text-wine">Judi</span>
-                    <span className="text-sm text-muted-foreground">July 22</span>
-                  </div>
+                  {specialDates.filter((date) => date.title.toLowerCase().includes('birthday')).slice(0, 2).map((date) => (
+                    <div key={date.id} className="flex items-center justify-between rounded-xl bg-white/70 px-3 py-2">
+                      <span className="text-sm font-medium text-wine">{date.title}</span>
+                      <span className="text-sm text-muted-foreground">{format(new Date(date.eventDate), 'MMMM d')}</span>
+                    </div>
+                  ))}
+                  {specialDates.filter((date) => date.title.toLowerCase().includes('birthday')).length === 0 && (
+                    <p className="text-sm text-muted-foreground">Add birthdays in Special Dates.</p>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -140,6 +173,7 @@ export default function HomePage() {
       </section>
 
       <section className="mx-auto max-w-7xl px-4 py-12 sm:px-6">
+        {loadError && <p role="alert" className="mb-6 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">{loadError}</p>}
         <div className="overflow-hidden rounded-[28px] border border-primary/10 bg-white shadow-soft">
           <div className="grid lg:grid-cols-[1.3fr_0.7fr]">
             <div className="relative aspect-video bg-black">
@@ -169,6 +203,7 @@ export default function HomePage() {
 
       <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 space-y-16">
         {/* Featured memory */}
+        {featuredMemory ? (
         <section>
           <div className="flex items-end justify-between gap-4">
             <SectionHeading
@@ -183,8 +218,7 @@ export default function HomePage() {
           <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[1.35fr_.85fr]">
             <div className="photo-frame relative overflow-hidden rounded-2xl group">
               {featuredMemory.imagePath && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
+                <StoryImage
                   src={featuredMemory.imagePath}
                   alt={featuredMemory.title}
                   className="h-72 w-full object-cover transition-transform duration-700 group-hover:scale-105 sm:h-[27rem]"
@@ -196,7 +230,6 @@ export default function HomePage() {
                 <p className="text-white font-serif-display text-2xl">{featuredMemory.title}</p>
               </div>
             </div>
-
             <div className="editorial-card rounded-2xl p-6 sm:p-8 flex flex-col justify-center gap-4">
               <p className="text-sm text-muted-foreground">
                 {format(new Date(featuredMemory.memoryDate), 'MMMM d, yyyy')}
@@ -220,6 +253,13 @@ export default function HomePage() {
             </div>
           </div>
         </section>
+        ) : (
+          <Card className="border-dashed border-border">
+            <CardContent className="p-8 text-center text-muted-foreground">
+              No memories yet. Add your first memory from the Gallery.
+            </CardContent>
+          </Card>
+        )}
 
         {/* Current chapter & latest memory */}
         <section className="grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -256,8 +296,7 @@ export default function HomePage() {
                 <>
                   <div className="flex gap-4">
                     {latestMemory.imagePath && (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
+                      <StoryImage
                         src={latestMemory.imagePath}
                         alt={latestMemory.title}
                         className="h-24 w-24 rounded-lg object-cover shadow-soft shrink-0"
@@ -290,7 +329,7 @@ export default function HomePage() {
         <section>
           <SectionHeading title="Coming Up" subtitle="Special dates on the horizon" />
           <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {demoSpecialDates
+            {specialDates
               .filter((d) => new Date(d.eventDate) > now)
               .slice(0, 3)
               .map((date) => {
@@ -313,7 +352,7 @@ export default function HomePage() {
                   </Card>
                 );
               })}
-            {demoSpecialDates.filter((d) => new Date(d.eventDate) > now).length === 0 && (
+            {specialDates.filter((d) => new Date(d.eventDate) > now).length === 0 && (
               <Card className="col-span-full border-dashed border-border">
                 <CardContent className="p-8 text-center text-muted-foreground">
                   No upcoming special dates. Add one in Settings.

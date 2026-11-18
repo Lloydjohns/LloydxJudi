@@ -57,7 +57,7 @@ function FloatingHearts() {
 }
 
 export default function MusicPage() {
-  const { tracks, currentTrackIndex, selectTrack, isPlaying, togglePlay, currentTrack, updateTrackSource, addTrack, updateTrack, deleteTrack } = useMusicPlayer();
+  const { tracks, isPlaylistReady, audioError, currentTrackIndex, selectTrack, isPlaying, togglePlay, currentTrack, updateTrackSource, addTrack, updateTrack, deleteTrack } = useMusicPlayer();
   const [sourceValue, setSourceValue] = useState('');
   const [sourceMessage, setSourceMessage] = useState<string | null>(null);
   const [scrollY, setScrollY] = useState(0);
@@ -110,6 +110,11 @@ export default function MusicPage() {
     <AppShell>
       <div className="relative min-h-screen bg-[#1a0f1f] text-[#fff6f5]">
         <FloatingHearts />
+        {!isPlaylistReady && (
+          <p role={audioError ? 'alert' : 'status'} className="relative z-10 mx-auto max-w-4xl px-4 pt-4 text-sm text-[#f6b2c5]">
+            {audioError ? `Playlist unavailable: ${audioError}` : 'Loading your shared playlist...'}
+          </p>
+        )}
 
         {/* Ambient glow orbs */}
         <div className="pointer-events-none fixed inset-0 overflow-hidden" aria-hidden="true">
@@ -271,6 +276,7 @@ export default function MusicPage() {
                       </div>
                       <Button
                         type="button"
+                        disabled={!isPlaylistReady}
                         onClick={() => {
                           if (!isSupportedYouTubeUrl(sourceValue)) {
                             setSourceMessage('Paste a valid YouTube video link.');
@@ -323,7 +329,7 @@ export default function MusicPage() {
                     <Input id="track-source-url" type="url" required value={trackForm.sourceUrl} onChange={(event) => setTrackForm({ ...trackForm, sourceUrl: event.target.value })} className="mt-1 border-white/15 bg-black/20 text-white" placeholder="https://..." />
                   </div>
                   <div className="flex flex-wrap gap-2 sm:col-span-2">
-                    <Button type="submit" className="bg-[#e77d9c] text-white hover:bg-[#ef91ad]">
+                    <Button type="submit" disabled={!isPlaylistReady} className="bg-[#e77d9c] text-white hover:bg-[#ef91ad]">
                       {editingTrackIndex === null ? <Plus className="mr-2 h-4 w-4" /> : <Save className="mr-2 h-4 w-4" />}
                       {editingTrackIndex === null ? 'Add song' : 'Save changes'}
                     </Button>
@@ -452,7 +458,7 @@ export default function MusicPage() {
                           <ExternalLink className="h-4 w-4" />
                         </a>
                       )}
-                      <Button type="button" size="icon" variant="ghost" className="h-8 w-8 text-white/60 hover:text-white" aria-label={`Edit ${track.title}`} onClick={() => editTrack(index)}>
+                      <Button type="button" size="icon" variant="ghost" className="h-8 w-8 text-white/60 hover:text-white" aria-label={`Edit ${track.title}`} disabled={!isPlaylistReady} onClick={() => editTrack(index)}>
                         <Pencil className="h-4 w-4" />
                       </Button>
                       <Button
@@ -461,6 +467,7 @@ export default function MusicPage() {
                         variant="ghost"
                         className="h-8 w-8 text-white/60 hover:text-red-300"
                         aria-label={`Delete ${track.title}`}
+                        disabled={!isPlaylistReady}
                         onClick={() => {
                           if (!window.confirm(`Delete “${track.title}” from the playlist?`)) return;
                           deleteTrack(index);
