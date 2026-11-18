@@ -18,6 +18,7 @@ import {
   isChapterUnlocked,
   getTotalChapters,
   formatChapterDateRange,
+  parseDateSafe,
 } from '@/lib/date-utils';
 import { format, parseISO } from 'date-fns';
 import { useEffect, useState } from 'react';
@@ -48,6 +49,8 @@ export default function TimelinePage() {
   const [chapterIntro, setChapterIntro] = useState('');
   const [chapterImageUrl, setChapterImageUrl] = useState('');
   const [chapterLetter, setChapterLetter] = useState('');
+  const [chapterStartDate, setChapterStartDate] = useState('');
+  const [chapterEndDate, setChapterEndDate] = useState('');
   const [saveError, setSaveError] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -70,7 +73,7 @@ export default function TimelinePage() {
     return () => { active = false; };
   }, []);
 
-  const chapters = baseChapters.map((chapter) => {
+  const chapters: Array<(typeof baseChapters)[number] & Partial<Pick<TimelineChapterOverride, 'startDate' | 'endDate'>>> = baseChapters.map((chapter) => {
     const override = chapterOverrides.find((item) => item.chapterId === chapter.id);
     if (override) return { ...chapter, ...override };
     const coverImage = memories.find((memory) => memory.chapterId === chapter.id)?.imagePath ?? null;
@@ -143,14 +146,21 @@ export default function TimelinePage() {
     setChapterIntro('');
     setChapterImageUrl('');
     setChapterLetter('');
+    setChapterStartDate('');
+    setChapterEndDate('');
   };
 
-  const editChapter = (chapter: (typeof baseChapters)[number]) => {
+  const editChapter = (chapter: (typeof chapters)[number]) => {
     setEditingChapterId(chapter.id);
     setChapterTitle(chapter.title);
     setChapterIntro(chapter.intro);
     setChapterImageUrl(chapter.coverImage ?? '');
     setChapterLetter(chapter.monthlyLetter ?? '');
+    setChapterStartDate(format(getChapterStartDate(anniversaryDate, chapter.monthNumber), 'yyyy-MM-dd'));
+    setChapterEndDate(format(new Date(getChapterEndDate(anniversaryDate, chapter.monthNumber).getTime() - 86400000), 'yyyy-MM-dd'));
+    const savedOverride = chapterOverrides.find((item) => item.chapterId === chapter.id);
+    if (savedOverride?.startDate) setChapterStartDate(savedOverride.startDate);
+    if (savedOverride?.endDate) setChapterEndDate(savedOverride.endDate);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -158,7 +168,11 @@ export default function TimelinePage() {
     event.preventDefault();
     const trimmedTitle = chapterTitle.trim();
     const trimmedIntro = chapterIntro.trim();
-    if (!editingChapterId || !trimmedTitle || !trimmedIntro) return;
+    if (!editingChapterId || !trimmedTitle || !trimmedIntro || !chapterStartDate || !chapterEndDate) return;
+    if (chapterEndDate < chapterStartDate) {
+      setSaveError('The chapter end date must be on or after its start date.');
+      return;
+    }
 
     const override: TimelineChapterOverride = {
       chapterId: editingChapterId,
@@ -166,6 +180,8 @@ export default function TimelinePage() {
       intro: trimmedIntro,
       coverImage: chapterImageUrl.trim() || null,
       monthlyLetter: chapterLetter.trim() || null,
+      startDate: chapterStartDate,
+      endDate: chapterEndDate,
     };
     const next = [
       ...chapterOverrides.filter((item) => item.chapterId !== editingChapterId),
@@ -255,6 +271,16 @@ export default function TimelinePage() {
               <h2 className="font-serif-display text-xl font-semibold">Edit monthly chapter</h2>
               <p className="mt-1 text-sm text-muted-foreground">Update the chapter title, description, cover image, and letter.</p>
               <form onSubmit={saveChapter} className="mt-4 grid gap-4">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="chapter-start-date">Start date</Label>
+                    <Input id="chapter-start-date" type="date" value={chapterStartDate} onChange={(event) => setChapterStartDate(event.target.value)} required />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="chapter-end-date">End date</Label>
+                    <Input id="chapter-end-date" type="date" value={chapterEndDate} onChange={(event) => setChapterEndDate(event.target.value)} min={chapterStartDate || undefined} required />
+                  </div>
+                </div>
                 <div className="space-y-2">
                   <Label htmlFor="chapter-title">Title</Label>
                   <Input id="chapter-title" value={chapterTitle} onChange={(event) => setChapterTitle(event.target.value)} required />
@@ -336,10 +362,10 @@ export default function TimelinePage() {
 
           <div className="space-y-8">
             {chapters.map((chapter, index) => {
-              const unlocked = isChapterUnlocked(anniversaryDate, chapter.monthNumber, now);
+              const unlocked = isChapterUnlocked(anniversaryDate, chapter.monthNumber, now, chapter.startDate);
               const chapterMemories = memories.filter((m) => m.chapterId === chapter.id);
               const isLeft = index % 2 === 0;
-              const dateRange = formatChapterDateRange(anniversaryDate, chapter.monthNumber);
+              const dateRange = formatChapterDateRange(anniversaryDate, chapter.monthNumber, chapter.startDate, chapter.endDate);
 
               return (
                 <div
@@ -428,7 +454,7 @@ export default function TimelinePage() {
                             <p className="text-xs text-muted-foreground flex items-center gap-1"><Calendar className="h-3 w-3" /> {dateRange}</p>
                             <p className="text-sm text-muted-foreground line-clamp-2">{chapter.intro}</p>
                             <p className="text-xs text-muted-foreground italic">
-                              Unlocks on {format(getChapterStartDate(anniversaryDate, chapter.monthNumber), 'MMM d, yyyy')}
+                              Unlocks on {format(parseDateSafe(chapter.startDate ?? '') ?? getChapterStartDate(anniversaryDate, chapter.monthNumber), 'MMM d, yyyy')}
                             </p>
                           </CardContent>
                         </>

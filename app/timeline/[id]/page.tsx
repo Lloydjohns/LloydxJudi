@@ -61,7 +61,7 @@ export default function ChapterDetailPage() {
     .filter((m) => m.chapterId === chapter.id)
     .sort((a, b) => new Date(a.memoryDate).getTime() - new Date(b.memoryDate).getTime());
 
-  const dateRange = formatChapterDateRange(anniversaryDate, chapter.monthNumber);
+  const dateRange = formatChapterDateRange(anniversaryDate, chapter.monthNumber, chapter.startDate, chapter.endDate);
 
   const deleteMemory = async (memory: Memory) => {
     if (!window.confirm(`Delete “${memory.title}” from this chapter?`)) return;

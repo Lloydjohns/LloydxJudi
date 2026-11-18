@@ -1,4 +1,4 @@
-create table public.story_collections (
+create table if not exists public.story_collections (
   user_id uuid not null references auth.users (id) on delete cascade,
   collection_key text not null check (
     collection_key in (
@@ -18,20 +18,27 @@ create table public.story_collections (
 
 alter table public.story_collections enable row level security;
 
+grant usage on schema public to authenticated;
 grant select, insert, update, delete on public.story_collections to authenticated;
 
+drop policy if exists "Users can read their own story collections"
+  on public.story_collections;
 create policy "Users can read their own story collections"
   on public.story_collections
   for select
   to authenticated
   using ((select auth.uid()) = user_id);
 
+drop policy if exists "Users can create their own story collections"
+  on public.story_collections;
 create policy "Users can create their own story collections"
   on public.story_collections
   for insert
   to authenticated
   with check ((select auth.uid()) = user_id);
 
+drop policy if exists "Users can update their own story collections"
+  on public.story_collections;
 create policy "Users can update their own story collections"
   on public.story_collections
   for update
@@ -39,6 +46,8 @@ create policy "Users can update their own story collections"
   using ((select auth.uid()) = user_id)
   with check ((select auth.uid()) = user_id);
 
+drop policy if exists "Users can delete their own story collections"
+  on public.story_collections;
 create policy "Users can delete their own story collections"
   on public.story_collections
   for delete
@@ -58,6 +67,8 @@ set public = false,
     file_size_limit = excluded.file_size_limit,
     allowed_mime_types = excluded.allowed_mime_types;
 
+drop policy if exists "Users can read their own story media"
+  on storage.objects;
 create policy "Users can read their own story media"
   on storage.objects
   for select
@@ -67,6 +78,8 @@ create policy "Users can read their own story media"
     and (storage.foldername(name))[1] = (select auth.uid())::text
   );
 
+drop policy if exists "Users can upload their own story media"
+  on storage.objects;
 create policy "Users can upload their own story media"
   on storage.objects
   for insert
@@ -76,6 +89,8 @@ create policy "Users can upload their own story media"
     and (storage.foldername(name))[1] = (select auth.uid())::text
   );
 
+drop policy if exists "Users can update their own story media"
+  on storage.objects;
 create policy "Users can update their own story media"
   on storage.objects
   for update
@@ -89,6 +104,8 @@ create policy "Users can update their own story media"
     and (storage.foldername(name))[1] = (select auth.uid())::text
   );
 
+drop policy if exists "Users can delete their own story media"
+  on storage.objects;
 create policy "Users can delete their own story media"
   on storage.objects
   for delete
@@ -97,3 +114,5 @@ create policy "Users can delete their own story media"
     bucket_id = 'lloydxjudi-story-media'
     and (storage.foldername(name))[1] = (select auth.uid())::text
   );
+
+notify pgrst, 'reload schema';

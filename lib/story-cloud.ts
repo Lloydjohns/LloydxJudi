@@ -42,6 +42,15 @@ const collectionDefaults: Record<string, unknown> = {
   },
 };
 
+function formatCollectionError(action: 'load' | 'save', key: string, error: { code?: string; message: string }): Error {
+  if (error.code === 'PGRST205' || error.message.includes('Could not find the table')) {
+    return new Error(
+      'The cloud database is not set up yet. Run supabase/migrations/20261118133846_story_cloud_sync.sql in your Supabase SQL Editor, then reload this page.'
+    );
+  }
+  return new Error(`Could not ${action} ${key}${action === 'save' ? ' to the cloud' : ''}: ${error.message}`);
+}
+
 async function getUserId(): Promise<string> {
   const supabase = getSupabaseBrowserClient();
   const { data, error } = await supabase.auth.getUser();
@@ -60,7 +69,7 @@ export async function loadCloudValue<T>(key: string, fallback: T): Promise<T> {
     .eq('collection_key', key)
     .maybeSingle();
 
-  if (error) throw new Error(`Could not load ${key}: ${error.message}`);
+  if (error) throw formatCollectionError('load', key, error);
 
   if (data) return data.data as T;
 
@@ -90,7 +99,7 @@ export async function saveCloudValue<T>(key: string, value: T): Promise<void> {
     },
     { onConflict: 'user_id,collection_key' }
   );
-  if (error) throw new Error(`Could not save ${key} to the cloud: ${error.message}`);
+  if (error) throw formatCollectionError('save', key, error);
 }
 
 export async function syncLocalStoryData(): Promise<void> {

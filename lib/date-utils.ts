@@ -40,9 +40,15 @@ export function getTotalChapters(anniversaryDate: Date, referenceDate: Date = ne
   return getMonthsTogether(anniversaryDate, referenceDate) + 1;
 }
 
-export function formatChapterDateRange(anniversaryDate: Date, monthNumber: number): string {
-  const start = getChapterStartDate(anniversaryDate, monthNumber);
-  const end = new Date(getChapterEndDate(anniversaryDate, monthNumber).getTime() - 86400000);
+export function formatChapterDateRange(
+  anniversaryDate: Date,
+  monthNumber: number,
+  customStartDate?: string,
+  customEndDate?: string
+): string {
+  const start = customStartDate ? parseDateSafe(customStartDate) ?? getChapterStartDate(anniversaryDate, monthNumber) : getChapterStartDate(anniversaryDate, monthNumber);
+  const defaultEnd = new Date(getChapterEndDate(anniversaryDate, monthNumber).getTime() - 86400000);
+  const end = customEndDate ? parseDateSafe(customEndDate) ?? defaultEnd : defaultEnd;
   return `${format(start, 'MMM d, yyyy')} - ${format(end, 'MMM d, yyyy')}`;
 }
 
@@ -77,8 +83,15 @@ export function getChapterTitle(monthNumber: number): string {
   return `Month ${monthNumber}`;
 }
 
-export function isChapterUnlocked(anniversaryDate: Date, monthNumber: number, referenceDate: Date = new Date()): boolean {
-  const chapterStart = getChapterStartDate(anniversaryDate, monthNumber);
+export function isChapterUnlocked(
+  anniversaryDate: Date,
+  monthNumber: number,
+  referenceDate: Date = new Date(),
+  customStartDate?: string
+): boolean {
+  const chapterStart = customStartDate
+    ? parseDateSafe(customStartDate) ?? getChapterStartDate(anniversaryDate, monthNumber)
+    : getChapterStartDate(anniversaryDate, monthNumber);
   return !isAfter(chapterStart, referenceDate);
 }
 

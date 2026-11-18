@@ -72,6 +72,8 @@ export interface TimelineChapterOverride {
   intro: string;
   coverImage: string | null;
   monthlyLetter: string | null;
+  startDate?: string;
+  endDate?: string;
 }
 
 export type TrackSourceType = 'file' | 'spotify' | 'youtube' | 'soundcloud';

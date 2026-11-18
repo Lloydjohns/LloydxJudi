@@ -6,7 +6,7 @@ Story data is stored in Supabase so it is available on each device after enterin
 
 ### Configure Supabase
 
-1. Apply `supabase/migrations/20261118133846_story_cloud_sync.sql` to your Supabase project using the Supabase SQL Editor or your linked migration workflow. It creates the RLS-protected story table and private media bucket.
+1. Apply the full contents of `supabase/migrations/20261118133846_story_cloud_sync.sql` to your Supabase project in **Dashboard → SQL Editor → New query → Run**. It creates the RLS-protected story table, grants the authenticated Data API role access subject to RLS, and creates the private media bucket. The migration is safe to rerun if a previous attempt stopped partway through; it refreshes the named policies without deleting story rows. It also asks PostgREST to reload its schema.
 2. Create one shared user in Supabase Auth (or reuse the account that owns the existing story data). The app's server checks the shared access code, then establishes a session for this account; people using the app do not enter the account's email or password.
 3. Set these public variables for local development and in the Vercel project's environment settings, then redeploy:
    - `NEXT_PUBLIC_SUPABASE_URL`
@@ -15,6 +15,8 @@ Story data is stored in Supabase so it is available on each device after enterin
    - `STORY_ACCESS_CODE`: a long, unique code shared only with the intended devices/users (use at least 32 random characters).
    - `STORY_SHARED_EMAIL`: the shared Supabase Auth user's email.
    - `STORY_SHARED_PASSWORD`: that Supabase Auth user's password.
+
+If the app reports that `public.story_collections` is missing from the schema cache, the migration has not been run on this Supabase project (or PostgREST has not yet refreshed). Run the migration above; if the table exists but the error persists, use **Project Settings → API → Reload schema cache**, then reload the app.
 
 The access code is verified on the server and is not included in browser code. The server exchanges it for a Supabase session for the shared account; the database and storage remain private under the migration's owner-based RLS policies. Never expose `STORY_ACCESS_CODE`, `STORY_SHARED_PASSWORD`, or `SUPABASE_SERVICE_ROLE_KEY` in a `NEXT_PUBLIC_*` variable.
 
