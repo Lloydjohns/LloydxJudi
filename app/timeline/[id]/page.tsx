@@ -7,30 +7,60 @@ import { HeartDivider } from '@/components/layout/shared';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Calendar, MapPin, ArrowRight, Mail } from 'lucide-react';
+import { ArrowLeft, Calendar, MapPin, ArrowRight, Mail, Pencil, Trash2 } from 'lucide-react';
 import { demoMemories, getDemoChapters, DEMO_ANNIVERSARY_DATE } from '@/lib/demo-data';
 import { formatChapterDateRange } from '@/lib/date-utils';
 import { format } from 'date-fns';
-import { useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import type { Memory, TimelineChapterOverride } from '@/lib/types';
+import { loadLocalList, saveLocalList } from '@/lib/local-data';
+
+const CHAPTER_STORAGE_KEY = 'llodxjudi-timeline-chapters';
+const MEMORY_STORAGE_KEY = 'llodxjudi-memories';
 
 export default function ChapterDetailPage() {
   const params = useParams();
   const chapterId = params?.id as string;
-  const anniversaryDate = new Date(DEMO_ANNIVERSARY_DATE);
-  const chapters = getDemoChapters(anniversaryDate);
-  const chapter = chapters.find((c) => c.id === chapterId);
+  const anniversaryDate = useMemo(() => new Date(DEMO_ANNIVERSARY_DATE), []);
+  const chapters = useMemo(() => getDemoChapters(anniversaryDate), [anniversaryDate]);
+  const baseChapter = chapters.find((c) => c.id === chapterId);
+  const [chapterOverride, setChapterOverride] = useState<TimelineChapterOverride | null>(null);
+  const [memories, setMemories] = useState<Memory[]>(demoMemories);
 
   useEffect(() => {
-    if (!chapter) notFound();
-  }, [chapter]);
+    if (!baseChapter) {
+      notFound();
+      return;
+    }
 
+    setChapterOverride(
+      loadLocalList<TimelineChapterOverride>(CHAPTER_STORAGE_KEY, [])
+        .find((item) => item.chapterId === chapterId) ?? null
+    );
+    setMemories(loadLocalList<Memory>(MEMORY_STORAGE_KEY, demoMemories));
+  }, [baseChapter, chapterId]);
+
+  const chapter = baseChapter
+    ? {
+        ...baseChapter,
+        coverImage: memories.find((memory) => memory.chapterId === baseChapter.id)?.imagePath ?? null,
+        ...chapterOverride,
+      }
+    : null;
   if (!chapter) return null;
 
-  const memories = demoMemories
+  const chapterMemories = memories
     .filter((m) => m.chapterId === chapter.id)
     .sort((a, b) => new Date(a.memoryDate).getTime() - new Date(b.memoryDate).getTime());
 
   const dateRange = formatChapterDateRange(anniversaryDate, chapter.monthNumber);
+
+  const deleteMemory = (memory: Memory) => {
+    if (!window.confirm(`Delete “${memory.title}” from this chapter?`)) return;
+    const next = memories.filter((item) => item.id !== memory.id);
+    saveLocalList(MEMORY_STORAGE_KEY, next);
+    setMemories(next);
+  };
 
   return (
     <AppShell>
@@ -106,7 +136,7 @@ export default function ChapterDetailPage() {
             Memories from this chapter
           </h2>
 
-          {memories.length === 0 ? (
+          {chapterMemories.length === 0 ? (
             <div className="rounded-xl border border-dashed border-border bg-muted/20 px-6 py-12 text-center">
               <p className="text-sm text-muted-foreground">
                 No memories in this chapter yet. Add one to start filling the page.
@@ -114,9 +144,9 @@ export default function ChapterDetailPage() {
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              {memories.map((memory) => (
-                <Link key={memory.id} href={`/memories/${memory.id}`}>
-                  <Card className="border-primary/15 shadow-soft hover:shadow-romantic hover:-translate-y-0.5 transition-all duration-300 cursor-pointer overflow-hidden group h-full">
+              {chapterMemories.map((memory) => (
+                  <Card key={memory.id} className="border-primary/15 shadow-soft hover:shadow-romantic hover:-translate-y-0.5 transition-all duration-300 overflow-hidden group h-full">
+                    <Link href={`/memories/${memory.id}`} className="block">
                     {memory.imagePath && (
                       <div className="relative h-52 overflow-hidden sm:h-64">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -148,8 +178,18 @@ export default function ChapterDetailPage() {
                         </span>
                       </div>
                     </CardContent>
+                    </Link>
+                    <div className="flex flex-wrap gap-2 border-t border-primary/10 p-3">
+                      <Button asChild size="sm" variant="outline">
+                        <Link href={`/memories/new?edit=${encodeURIComponent(memory.id)}`}>
+                          <Pencil className="mr-1.5 h-4 w-4" />Edit
+                        </Link>
+                      </Button>
+                      <Button type="button" size="sm" variant="outline" onClick={() => deleteMemory(memory)}>
+                        <Trash2 className="mr-1.5 h-4 w-4" />Delete
+                      </Button>
+                    </div>
                   </Card>
-                </Link>
               ))}
             </div>
           )}

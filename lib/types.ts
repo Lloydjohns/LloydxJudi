@@ -66,6 +66,14 @@ export interface TimelineEvent {
   updatedAt: string;
 }
 
+export interface TimelineChapterOverride {
+  chapterId: string;
+  title: string;
+  intro: string;
+  coverImage: string | null;
+  monthlyLetter: string | null;
+}
+
 export type TrackSourceType = 'file' | 'spotify' | 'youtube' | 'soundcloud';
 
 export interface PlaylistTrack {

@@ -21,28 +21,43 @@ import {
 } from '@/lib/date-utils';
 import { format, parseISO } from 'date-fns';
 import { useEffect, useState } from 'react';
-import type { TimelineEvent } from '@/lib/types';
+import type { TimelineChapterOverride, TimelineEvent } from '@/lib/types';
 import { loadLocalList, makeLocalId, saveLocalList } from '@/lib/local-data';
 
 const STORAGE_KEY = 'llodxjudi-timeline-events';
+const CHAPTER_STORAGE_KEY = 'llodxjudi-timeline-chapters';
 
 export default function TimelinePage() {
   const anniversaryDate = new Date(DEMO_ANNIVERSARY_DATE);
   const now = new Date();
   const totalChapters = getTotalChapters(anniversaryDate, now);
-  const chapters = getDemoChapters(anniversaryDate);
+  const baseChapters = getDemoChapters(anniversaryDate);
   const [events, setEvents] = useState<TimelineEvent[]>([]);
   const [memories, setMemories] = useState(demoMemories);
+  const [chapterOverrides, setChapterOverrides] = useState<TimelineChapterOverride[]>([]);
   const [title, setTitle] = useState('');
   const [eventDate, setEventDate] = useState('');
   const [story, setStory] = useState('');
   const [imageUrl, setImageUrl] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingChapterId, setEditingChapterId] = useState<string | null>(null);
+  const [chapterTitle, setChapterTitle] = useState('');
+  const [chapterIntro, setChapterIntro] = useState('');
+  const [chapterImageUrl, setChapterImageUrl] = useState('');
+  const [chapterLetter, setChapterLetter] = useState('');
 
   useEffect(() => {
     setEvents(loadLocalList<TimelineEvent>(STORAGE_KEY, []));
     setMemories(loadLocalList('llodxjudi-memories', demoMemories));
+    setChapterOverrides(loadLocalList<TimelineChapterOverride>(CHAPTER_STORAGE_KEY, []));
   }, []);
+
+  const chapters = baseChapters.map((chapter) => {
+    const override = chapterOverrides.find((item) => item.chapterId === chapter.id);
+    if (override) return { ...chapter, ...override };
+    const coverImage = memories.find((memory) => memory.chapterId === chapter.id)?.imagePath ?? null;
+    return { ...chapter, coverImage };
+  });
 
   const resetForm = () => {
     setEditingId(null);
@@ -90,6 +105,53 @@ export default function TimelinePage() {
     saveLocalList(STORAGE_KEY, next);
     setEvents(next);
     if (editingId === entry.id) resetForm();
+  };
+
+  const resetChapterForm = () => {
+    setEditingChapterId(null);
+    setChapterTitle('');
+    setChapterIntro('');
+    setChapterImageUrl('');
+    setChapterLetter('');
+  };
+
+  const editChapter = (chapter: (typeof baseChapters)[number]) => {
+    setEditingChapterId(chapter.id);
+    setChapterTitle(chapter.title);
+    setChapterIntro(chapter.intro);
+    setChapterImageUrl(chapter.coverImage ?? '');
+    setChapterLetter(chapter.monthlyLetter ?? '');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const saveChapter = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const trimmedTitle = chapterTitle.trim();
+    const trimmedIntro = chapterIntro.trim();
+    if (!editingChapterId || !trimmedTitle || !trimmedIntro) return;
+
+    const override: TimelineChapterOverride = {
+      chapterId: editingChapterId,
+      title: trimmedTitle,
+      intro: trimmedIntro,
+      coverImage: chapterImageUrl.trim() || null,
+      monthlyLetter: chapterLetter.trim() || null,
+    };
+    const next = [
+      ...chapterOverrides.filter((item) => item.chapterId !== editingChapterId),
+      override,
+    ];
+    saveLocalList(CHAPTER_STORAGE_KEY, next);
+    setChapterOverrides(next);
+    resetChapterForm();
+  };
+
+  const resetChapter = (chapter: (typeof baseChapters)[number]) => {
+    if (!window.confirm(`Reset “${chapter.title}” to its original content?`)) return;
+    const next = chapterOverrides.filter((item) => item.chapterId !== chapter.id);
+    saveLocalList(CHAPTER_STORAGE_KEY, next);
+    setChapterOverrides(next);
+    if (editingChapterId === chapter.id) resetChapterForm();
   };
 
   const sortedEvents = [...events].sort((a, b) => a.eventDate.localeCompare(b.eventDate));
@@ -143,6 +205,44 @@ export default function TimelinePage() {
             </form>
           </CardContent>
         </Card>
+
+        {editingChapterId && (
+          <Card className="mt-5 border-primary/15 shadow-soft">
+            <CardContent className="p-5 sm:p-6">
+              <h2 className="font-serif-display text-xl font-semibold">Edit monthly chapter</h2>
+              <p className="mt-1 text-sm text-muted-foreground">Update the chapter title, description, cover image, and letter.</p>
+              <form onSubmit={saveChapter} className="mt-4 grid gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="chapter-title">Title</Label>
+                  <Input id="chapter-title" value={chapterTitle} onChange={(event) => setChapterTitle(event.target.value)} required />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="chapter-intro">Description</Label>
+                  <Textarea id="chapter-intro" value={chapterIntro} onChange={(event) => setChapterIntro(event.target.value)} required />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="chapter-image">Cover image URL</Label>
+                  <Input id="chapter-image" type="url" value={chapterImageUrl} onChange={(event) => setChapterImageUrl(event.target.value)} placeholder="https://example.com/photo.jpg" />
+                  {chapterImageUrl && (
+                    <div className="flex items-center gap-3 rounded-lg border border-primary/15 bg-muted/20 p-2">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={chapterImageUrl} alt="Chapter cover preview" className="h-16 w-16 rounded-md object-cover" />
+                      <p className="min-w-0 break-all text-xs text-muted-foreground">{chapterImageUrl}</p>
+                    </div>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="chapter-letter">Monthly letter (optional)</Label>
+                  <Textarea id="chapter-letter" value={chapterLetter} onChange={(event) => setChapterLetter(event.target.value)} />
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button type="submit" className="bg-gradient-wine text-white hover:opacity-90"><Save className="mr-2 h-4 w-4" />Update chapter</Button>
+                  <Button type="button" variant="outline" onClick={resetChapterForm}><X className="mr-2 h-4 w-4" />Cancel</Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+        )}
 
         <section className="mt-8 space-y-3" aria-label="Your timeline moments">
           <h2 className="font-serif-display text-2xl font-semibold">Our Moments</h2>
@@ -224,9 +324,9 @@ export default function TimelinePage() {
 
                   {/* Card */}
                   <div className={`ml-12 sm:ml-0 sm:w-1/2 ${isLeft ? 'sm:pr-10' : 'sm:pl-10'}`}>
-                    {unlocked ? (
-                      <Link href={`/timeline/${chapter.id}`}>
-                        <Card className="editorial-card rounded-2xl hover:shadow-romantic hover:-translate-y-0.5 transition-all duration-300 cursor-pointer overflow-hidden group">
+                    <Card className={`editorial-card rounded-2xl overflow-hidden group ${unlocked ? 'hover:shadow-romantic hover:-translate-y-0.5 transition-all duration-300' : 'border-dashed bg-white/50'}`}>
+                      {unlocked ? (
+                        <Link href={`/timeline/${chapter.id}`} className="block">
                           {chapter.coverImage && (
                             <div className="relative h-52 overflow-hidden sm:h-64">
                               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -270,30 +370,37 @@ export default function TimelinePage() {
                               </span>
                             </div>
                           </CardContent>
-                        </Card>
-                      </Link>
-                    ) : (
-                      <Card className="rounded-2xl border-dashed border-border bg-white/50 overflow-hidden">
-                        <div className="h-40 bg-muted flex items-center justify-center">
-                          <div className="text-center">
-                            <Lock className="h-8 w-8 text-muted-foreground/50 mx-auto" />
-                            <p className="mt-2 text-xs text-muted-foreground">Locked</p>
+                        </Link>
+                      ) : (
+                        <>
+                          <div className="h-40 bg-muted flex items-center justify-center">
+                            <div className="text-center">
+                              <Lock className="h-8 w-8 text-muted-foreground/50 mx-auto" />
+                              <p className="mt-2 text-xs text-muted-foreground">Locked</p>
+                            </div>
                           </div>
-                        </div>
-                        <CardContent className="p-4 space-y-2">
-                          <Badge variant="outline">Month {chapter.monthNumber}</Badge>
-                          <h3 className="font-serif-display text-lg font-semibold text-muted-foreground">
-                            {chapter.title}
-                          </h3>
-                          <p className="text-xs text-muted-foreground flex items-center gap-1">
-                            <Calendar className="h-3 w-3" /> {dateRange}
-                          </p>
-                          <p className="text-xs text-muted-foreground italic">
-                            Unlocks on {format(getChapterStartDate(anniversaryDate, chapter.monthNumber), 'MMM d, yyyy')}
-                          </p>
-                        </CardContent>
-                      </Card>
-                    )}
+                          <CardContent className="p-4 space-y-2">
+                            <Badge variant="outline">Month {chapter.monthNumber}</Badge>
+                            <h3 className="font-serif-display text-lg font-semibold text-muted-foreground">{chapter.title}</h3>
+                            <p className="text-xs text-muted-foreground flex items-center gap-1"><Calendar className="h-3 w-3" /> {dateRange}</p>
+                            <p className="text-sm text-muted-foreground line-clamp-2">{chapter.intro}</p>
+                            <p className="text-xs text-muted-foreground italic">
+                              Unlocks on {format(getChapterStartDate(anniversaryDate, chapter.monthNumber), 'MMM d, yyyy')}
+                            </p>
+                          </CardContent>
+                        </>
+                      )}
+                      <div className="flex flex-wrap gap-2 border-t border-primary/10 p-3">
+                        <Button type="button" size="sm" variant="outline" aria-label={`Edit month ${chapter.monthNumber}`} onClick={() => editChapter(chapter)}>
+                          <Pencil className="mr-1.5 h-4 w-4" />Edit
+                        </Button>
+                        {chapterOverrides.some((item) => item.chapterId === chapter.id) && (
+                          <Button type="button" size="sm" variant="ghost" aria-label={`Reset month ${chapter.monthNumber}`} onClick={() => resetChapter(chapter)}>
+                            <Trash2 className="mr-1.5 h-4 w-4" />Reset
+                          </Button>
+                        )}
+                      </div>
+                    </Card>
                   </div>
 
                   {/* Spacer for alternating layout */}

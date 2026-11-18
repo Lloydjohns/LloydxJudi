@@ -10,25 +10,36 @@ import { Badge } from '@/components/ui/badge';
 import { ArrowLeft, ArrowRight, Calendar, MapPin, Tag } from 'lucide-react';
 import { demoMemories, getDemoChapters, DEMO_ANNIVERSARY_DATE } from '@/lib/demo-data';
 import { format } from 'date-fns';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import type { Memory } from '@/lib/types';
+import { loadLocalList } from '@/lib/local-data';
+
+const STORAGE_KEY = 'llodxjudi-memories';
 
 export default function MemoryDetailPage() {
   const params = useParams();
   const memoryId = params?.id as string;
   const anniversaryDate = new Date(DEMO_ANNIVERSARY_DATE);
   const chapters = getDemoChapters(anniversaryDate);
+  const [memories, setMemories] = useState<Memory[]>(demoMemories);
+  const [loaded, setLoaded] = useState(false);
 
-  const sortedMemories = [...demoMemories].sort(
+  useEffect(() => {
+    setMemories(loadLocalList<Memory>(STORAGE_KEY, demoMemories));
+    setLoaded(true);
+  }, []);
+
+  const sortedMemories = [...memories].sort(
     (a, b) => new Date(a.memoryDate).getTime() - new Date(b.memoryDate).getTime()
   );
   const currentIndex = sortedMemories.findIndex((m) => m.id === memoryId);
   const memory = sortedMemories[currentIndex];
 
   useEffect(() => {
-    if (!memory) notFound();
-  }, [memory]);
+    if (loaded && !memory) notFound();
+  }, [loaded, memory]);
 
-  if (!memory) return null;
+  if (!loaded || !memory) return null;
 
   const prevMemory = currentIndex > 0 ? sortedMemories[currentIndex - 1] : null;
   const nextMemory = currentIndex < sortedMemories.length - 1 ? sortedMemories[currentIndex + 1] : null;
