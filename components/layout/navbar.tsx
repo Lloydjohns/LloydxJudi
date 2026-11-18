@@ -37,16 +37,16 @@ export function Navbar() {
   const router = useRouter();
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [signOutError, setSignOutError] = useState('');
+  const [lockError, setLockError] = useState('');
 
-  const signOut = async () => {
-    setSignOutError('');
+  const lockStory = async () => {
+    setLockError('');
     try {
       const { error } = await getSupabaseBrowserClient().auth.signOut();
       if (error) throw error;
-      router.replace('/auth/sign-in');
+      router.replace('/access');
     } catch (cause) {
-      setSignOutError(cause instanceof Error ? `Could not sign out: ${cause.message}` : 'Could not sign out.');
+      setLockError(cause instanceof Error ? `Could not lock the story: ${cause.message}` : 'Could not lock the story.');
     }
   };
 
@@ -83,8 +83,8 @@ export function Navbar() {
         </nav>
 
         <div className="hidden items-center gap-2 md:flex">
-          <button type="button" onClick={signOut} className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
-            <LogOut className="h-4 w-4" />Sign out
+          <button type="button" onClick={lockStory} className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
+            <LogOut className="h-4 w-4" />Lock story
           </button>
           <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#ead8dc] text-xs font-semibold text-wine" aria-label="Lloyd">L</span>
         </div>
@@ -122,10 +122,10 @@ export function Navbar() {
                 </Link>
               );
             })}
-            <button type="button" onClick={() => { setMobileOpen(false); void signOut(); }} className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
-              <LogOut className="h-4 w-4" />Sign out
+            <button type="button" onClick={() => { setMobileOpen(false); void lockStory(); }} className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
+              <LogOut className="h-4 w-4" />Lock story
             </button>
-            {signOutError && <p role="alert" className="px-3 py-2 text-xs text-destructive">{signOutError}</p>}
+            {lockError && <p role="alert" className="px-3 py-2 text-xs text-destructive">{lockError}</p>}
           </nav>
         </div>
       )}

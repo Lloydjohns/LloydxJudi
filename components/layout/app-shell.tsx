@@ -22,7 +22,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         const { data, error: authError } = await supabase.auth.getUser();
         if (authError) throw authError;
         if (!data.user) {
-          router.replace('/auth/sign-in');
+          router.replace('/access');
           return;
         }
         await syncLocalStoryData();
@@ -41,7 +41,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         {error ? (
           <div className="max-w-lg rounded-xl border border-destructive/30 bg-white p-6 text-center shadow-soft">
             <p role="alert" className="text-sm text-destructive">{error}</p>
-            <Button asChild className="mt-4"><Link href="/auth/sign-in">Go to sign in</Link></Button>
+            <Button asChild className="mt-4"><Link href="/access">Enter access code</Link></Button>
           </div>
         ) : <p className="text-sm text-muted-foreground">Connecting to your shared story...</p>}
       </main>

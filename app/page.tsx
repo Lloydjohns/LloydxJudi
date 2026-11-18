@@ -2,15 +2,14 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import Image from 'next/image';
 import { AlertCircle, ArrowLeft, ArrowRight, CalendarDays, Check, Clapperboard, Clock3, ExternalLink, Heart, Lock, MapPin, Music2, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { unlockSharedStory } from '@/lib/story-access';
 
-const STORY_PASSWORD = '11232025';
 const ENTRANCE_VIDEO_PATH = '/video/lloydxjudi.mp4';
 const restaurantOptions = [
   { name: 'The Penthouse 8747', detail: 'Rooftop dining, skyline views & cocktails', icon: '🌃', image: 'https://lh3.googleusercontent.com/grass-cs/AABkmLfqR8rxVOzFrhhgtUC1fh0tuzmgJQRTXbk5JndwZKbD6fc6_6E-jF_4uL4eAY493WySktf24vlIHukb2j-95TQUWZwXX_w3VlNrK3pXyxNsrXM36TdQ90S0MwSQTpEh7zObe0vDoQ=w408-h408-k-no', location: '8747 Paseo de Roxas, Makati', locationUrl: 'https://www.google.com/maps/search/?api=1&query=The+Penthouse+8747+Makati', menuUrl: 'https://www.google.com/search?q=The+Penthouse+8747+Makati+menu' },
@@ -55,8 +54,9 @@ const steps = ['A little greeting', 'Pick our dinner', 'The details', 'A note fo
 
 export default function WelcomePage() {
   const router = useRouter();
-  const [password, setPassword] = useState('');
+  const [accessCode, setAccessCode] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [unlocking, setUnlocking] = useState(false);
   const [unlocked, setUnlocked] = useState(false);
   const [step, setStep] = useState(0);
   const [restaurant, setRestaurant] = useState<string | null>(null);
@@ -69,14 +69,17 @@ export default function WelcomePage() {
   const [deliveryNotice, setDeliveryNotice] = useState<string | null>(null);
   const [sendingChoice, setSendingChoice] = useState(false);
   const [previewOnly, setPreviewOnly] = useState(false);
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError(null);
-    if (password !== STORY_PASSWORD) {
-      setError('That password didn’t open our story. Try again.');
-      return;
+    setUnlocking(true);
+    try {
+      await unlockSharedStory(accessCode);
+      setUnlocked(true);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Could not unlock our story.');
+      setUnlocking(false);
     }
-    setUnlocked(true);
   };
 
   const finish = () => router.push('/home');
@@ -130,25 +133,19 @@ export default function WelcomePage() {
           </div>
           <p className="mb-4 text-[10px] font-semibold uppercase tracking-[0.4em] text-white/55">A little world for two</p>
           <h1 className="font-script text-6xl leading-tight text-white drop-shadow-lg sm:text-7xl">Our Love Story</h1>
-          <p className="mx-auto mt-4 max-w-xs text-sm leading-6 text-white/65">Enter the password to unlock your anniversary surprise.</p>
+          <p className="mx-auto mt-4 max-w-xs text-sm leading-6 text-white/65">Enter our shared access code to unlock your story.</p>
 
           <form onSubmit={handleSubmit} className="mx-auto mt-8 max-w-sm space-y-3">
-            <Label htmlFor="story-password" className="sr-only">Password</Label>
-            <Input id="story-password" type="password" autoComplete="current-password" placeholder="Password" value={password}
-              onChange={(event) => { setPassword(event.target.value); setError(null); }}
+            <Label htmlFor="story-access-code" className="sr-only">Shared access code</Label>
+            <Input id="story-access-code" type="password" autoComplete="current-password" placeholder="Shared access code" value={accessCode}
+              onChange={(event) => { setAccessCode(event.target.value); setError(null); }}
               className="h-12 rounded-xl border border-white/15 bg-white/95 px-4 text-center text-[#4d3744] shadow-xl placeholder:text-[#8b7780] focus-visible:ring-2 focus-visible:ring-[#d8678b]"
               aria-invalid={Boolean(error)} aria-describedby={error ? 'welcome-error' : undefined} required />
             {error && <p id="welcome-error" role="alert" className="flex items-center justify-center gap-2 rounded-lg bg-black/30 px-3 py-2 text-xs text-white"><AlertCircle className="h-4 w-4 shrink-0 text-[#ffb4c7]" />{error}</p>}
-            <Button type="submit" className="h-12 w-full rounded-xl bg-[#d96388] text-white shadow-[0_8px_28px_rgba(217,99,136,.35)] transition-all hover:bg-[#e37699] hover:shadow-[0_10px_34px_rgba(217,99,136,.5)]">
-              <Lock className="mr-2 h-4 w-4" />Unlock Our Story
+            <Button type="submit" disabled={unlocking} className="h-12 w-full rounded-xl bg-[#d96388] text-white shadow-[0_8px_28px_rgba(217,99,136,.35)] transition-all hover:bg-[#e37699] hover:shadow-[0_10px_34px_rgba(217,99,136,.5)]">
+              <Lock className="mr-2 h-4 w-4" />{unlocking ? 'Unlocking...' : 'Unlock Our Story'}
             </Button>
           </form>
-          <p className="mt-5 text-sm text-white/65">
-            Already have an account?{' '}
-            <Link href="/auth/sign-in" className="font-semibold text-white underline underline-offset-4">Sign in</Link>
-            {' · '}
-            <Link href="/auth/sign-up" className="font-semibold text-white underline underline-offset-4">Create account</Link>
-          </p>
           <p className="mt-10 text-xs text-white/40">The best part of my life is you. <span aria-hidden="true">♡</span></p>
         </section>
       ) : (

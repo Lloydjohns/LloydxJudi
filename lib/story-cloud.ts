@@ -46,7 +46,7 @@ async function getUserId(): Promise<string> {
   const supabase = getSupabaseBrowserClient();
   const { data, error } = await supabase.auth.getUser();
   if (error) throw new Error(`Could not verify your account: ${error.message}`);
-  if (!data.user) throw new Error('Please sign in to access your shared story.');
+  if (!data.user) throw new Error('Enter the shared access code to access your story.');
   return data.user.id;
 }
 
