@@ -32,17 +32,22 @@ export default function MemoryDetailPage() {
   const sortedMemories = [...memories].sort(
     (a, b) => new Date(a.memoryDate).getTime() - new Date(b.memoryDate).getTime()
   );
-  const currentIndex = sortedMemories.findIndex((m) => m.id === memoryId);
-  const memory = sortedMemories[currentIndex];
+  const savedMemoryIndex = sortedMemories.findIndex((m) => m.id === memoryId);
+  const savedMemory = sortedMemories[savedMemoryIndex];
+  const fallbackMemory = demoMemories.find((item) => item.id === memoryId);
+  const memory = savedMemory ?? fallbackMemory;
+  const displayMemories = savedMemory || !fallbackMemory
+    ? sortedMemories
+    : [...sortedMemories, fallbackMemory].sort(
+        (a, b) => new Date(a.memoryDate).getTime() - new Date(b.memoryDate).getTime()
+      );
+  const currentIndex = displayMemories.findIndex((item) => item.id === memoryId);
 
-  useEffect(() => {
-    if (loaded && !memory) notFound();
-  }, [loaded, memory]);
+  if (!loaded) return null;
+  if (!memory) notFound();
 
-  if (!loaded || !memory) return null;
-
-  const prevMemory = currentIndex > 0 ? sortedMemories[currentIndex - 1] : null;
-  const nextMemory = currentIndex < sortedMemories.length - 1 ? sortedMemories[currentIndex + 1] : null;
+  const prevMemory = currentIndex > 0 ? displayMemories[currentIndex - 1] : null;
+  const nextMemory = currentIndex < displayMemories.length - 1 ? displayMemories[currentIndex + 1] : null;
   const chapter = chapters.find((c) => c.id === memory.chapterId);
 
   return (
