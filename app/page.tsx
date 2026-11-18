@@ -265,7 +265,8 @@ export default function WelcomePage() {
               <h1 className="mt-3 font-script text-5xl sm:text-6xl">A message from me</h1>
               <div className="mx-auto mt-6 max-w-lg rounded-2xl border border-white/10 bg-black/10 p-5 text-left sm:p-7">
                 <p className="font-script text-2xl text-[#ffb4c7]">My love,</p>
-                <p className="mt-3 text-sm leading-7 text-white/80">Happy first anniversary. This year with you has given me so many moments I want to keep close. Thank you for being withme thru ups and down, when we both laugh, for making anywhere feel like home and safe. I love you, and I can’t wait for everything still ahead of us.</p>
+                <p className="mt-3 text-sm leading-7 text-white/80">I’m so thankful to have you in my life. Thank you for staying with me through the ups and downs, for all the laughter, the little moments, and even the hard days. No matter where we are, you always make me feel at home. I may not always say it, but I appreciate you more than you know. </p>
+                <p className="mt-3 text-sm leading-7 text-white/80">I love you so much, and I’m looking forward to making more memories with you. Here's to us and to many more years together.</p>
                 <p className="mt-5 font-script text-2xl text-[#ffb4c7]">Lloydie </p>
               </div>
             </div>}

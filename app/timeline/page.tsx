@@ -19,7 +19,7 @@ import {
   getTotalChapters,
   formatChapterDateRange,
 } from '@/lib/date-utils';
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { useEffect, useState } from 'react';
 import type { TimelineEvent } from '@/lib/types';
 import { loadLocalList, makeLocalId, saveLocalList } from '@/lib/local-data';
@@ -125,6 +125,13 @@ export default function TimelinePage() {
                   Image link (optional)
                 </Label>
                 <Input id="timeline-image" type="url" value={imageUrl} onChange={(event) => setImageUrl(event.target.value)} placeholder="https://example.com/your-photo.jpg" />
+                {editingId && imageUrl && (
+                  <div className="flex items-center gap-3 rounded-lg border border-primary/15 bg-muted/20 p-2">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={imageUrl} alt="Timeline moment preview" className="h-16 w-16 rounded-md object-cover" />
+                    <p className="min-w-0 break-all text-xs text-muted-foreground">{imageUrl}</p>
+                  </div>
+                )}
               </div>
               <div className="flex gap-2 sm:col-span-2">
                 <Button type="submit" className="bg-gradient-wine text-white hover:opacity-90">
@@ -137,15 +144,21 @@ export default function TimelinePage() {
           </CardContent>
         </Card>
 
-        {sortedEvents.length > 0 && (
-          <section className="mt-8 space-y-3" aria-label="Your timeline moments">
-            <h2 className="font-serif-display text-2xl font-semibold">Our Moments</h2>
-            {sortedEvents.map((entry) => (
+        <section className="mt-8 space-y-3" aria-label="Your timeline moments">
+          <h2 className="font-serif-display text-2xl font-semibold">Our Moments</h2>
+          {sortedEvents.length === 0 ? (
+            <EmptyState
+              icon={Calendar}
+              title="No moments yet"
+              message="Add your first special moment above and it will appear here."
+            />
+          ) : (
+            sortedEvents.map((entry) => (
               <Card key={entry.id} className="border-primary/15 shadow-soft">
                 <CardContent className="flex items-start gap-4 p-4 sm:p-5">
                   <Calendar className="mt-1 h-5 w-5 shrink-0 text-primary" />
                   <div className="min-w-0 flex-1">
-                    <p className="text-xs text-muted-foreground">{format(new Date(entry.eventDate), 'MMMM d, yyyy')}</p>
+                    <p className="text-xs text-muted-foreground">{format(parseISO(entry.eventDate), 'MMMM d, yyyy')}</p>
                     <h3 className="font-serif-display text-lg font-semibold">{entry.title}</h3>
                     <p className="mt-1 whitespace-pre-line text-sm text-muted-foreground">{entry.story}</p>
                     {entry.imageUrl && (
@@ -155,15 +168,15 @@ export default function TimelinePage() {
                       </div>
                     )}
                   </div>
-                  <div className="flex shrink-0 gap-1">
-                    <Button type="button" size="icon" variant="ghost" aria-label={`Edit ${entry.title}`} onClick={() => editEvent(entry)}><Pencil className="h-4 w-4" /></Button>
-                    <Button type="button" size="icon" variant="ghost" aria-label={`Delete ${entry.title}`} onClick={() => deleteEvent(entry)}><Trash2 className="h-4 w-4" /></Button>
+                  <div className="flex shrink-0 flex-wrap gap-1">
+                    <Button type="button" size="sm" variant="outline" aria-label={`Edit ${entry.title}`} onClick={() => editEvent(entry)}><Pencil className="mr-1.5 h-4 w-4" />Edit</Button>
+                    <Button type="button" size="sm" variant="outline" aria-label={`Delete ${entry.title}`} onClick={() => deleteEvent(entry)}><Trash2 className="mr-1.5 h-4 w-4" />Delete</Button>
                   </div>
                 </CardContent>
               </Card>
-            ))}
-          </section>
-        )}
+            ))
+          )}
+        </section>
 
         <div className="mt-10 mb-8 flex items-center justify-center gap-4 text-sm text-muted-foreground">
           <span className="flex items-center gap-1.5">
