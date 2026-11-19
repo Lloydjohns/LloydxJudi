@@ -68,6 +68,7 @@ export interface TimelineEvent {
 
 export interface TimelineChapterOverride {
   chapterId: string;
+  monthNumber?: number;
   title: string;
   intro: string;
   coverImage: string | null;

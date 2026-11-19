@@ -8,27 +8,35 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ArrowLeft, ArrowRight, Calendar, MapPin, Tag } from 'lucide-react';
-import { demoMemories, getDemoChapters, DEMO_ANNIVERSARY_DATE } from '@/lib/demo-data';
+import { demoMemories, DEMO_ANNIVERSARY_DATE } from '@/lib/demo-data';
 import { format } from 'date-fns';
 import { useEffect, useState } from 'react';
-import type { Memory } from '@/lib/types';
+import type { Memory, TimelineChapterOverride } from '@/lib/types';
 import { loadCloudValue, STORY_COLLECTION_KEYS } from '@/lib/story-cloud';
 import { StoryImage } from '@/components/media/story-image';
 import { StoryVideo } from '@/components/media/story-video';
+import { getTimelineChapters } from '@/lib/timeline-chapters';
 
 export default function MemoryDetailPage() {
   const params = useParams();
   const memoryId = params?.id as string;
   const anniversaryDate = new Date(DEMO_ANNIVERSARY_DATE);
-  const chapters = getDemoChapters(anniversaryDate);
   const [memories, setMemories] = useState<Memory[]>(demoMemories);
+  const [chapterOverrides, setChapterOverrides] = useState<TimelineChapterOverride[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [loadError, setLoadError] = useState('');
 
   useEffect(() => {
     let active = true;
-    loadCloudValue<Memory[]>(STORY_COLLECTION_KEYS.memories, demoMemories)
-      .then((savedMemories) => { if (active) setMemories(savedMemories); })
+    Promise.all([
+      loadCloudValue<Memory[]>(STORY_COLLECTION_KEYS.memories, demoMemories),
+      loadCloudValue<TimelineChapterOverride[]>(STORY_COLLECTION_KEYS.timelineChapters, []),
+    ])
+      .then(([savedMemories, overrides]) => {
+        if (!active) return;
+        setMemories(savedMemories);
+        setChapterOverrides(overrides);
+      })
       .catch((cause: unknown) => { if (active) setLoadError(cause instanceof Error ? cause.message : 'Could not load this memory.'); })
       .finally(() => { if (active) setLoaded(true); });
     return () => { active = false; };
@@ -56,6 +64,7 @@ export default function MemoryDetailPage() {
 
   const prevMemory = currentIndex > 0 ? displayMemories[currentIndex - 1] : null;
   const nextMemory = currentIndex < displayMemories.length - 1 ? displayMemories[currentIndex + 1] : null;
+  const chapters = getTimelineChapters(anniversaryDate, chapterOverrides, memories);
   const chapter = chapters.find((c) => c.id === memory.chapterId);
 
   return (

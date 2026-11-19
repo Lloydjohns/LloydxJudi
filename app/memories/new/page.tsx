@@ -12,11 +12,12 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { ArrowLeft, CalendarDays, ImagePlus, Link2, MapPin, Save, Tag, Video, X } from 'lucide-react';
 import { demoMemories, getDemoChapters, DEMO_ANNIVERSARY_DATE } from '@/lib/demo-data';
-import type { Memory } from '@/lib/types';
-import { loadCloudValue, saveCloudValue } from '@/lib/story-cloud';
+import type { Memory, TimelineChapterOverride } from '@/lib/types';
+import { loadCloudValue, saveCloudValue, STORY_COLLECTION_KEYS } from '@/lib/story-cloud';
 import { makeLocalId } from '@/lib/local-data';
 import { deleteStoryMedia, isSupabaseMediaReference, uploadStoryMedia } from '@/lib/story-media';
 import { StoryImage } from '@/components/media/story-image';
+import { getTimelineChapters } from '@/lib/timeline-chapters';
 
 const STORAGE_KEY = 'llodxjudi-memories';
 
@@ -24,7 +25,9 @@ export default function NewMemoryPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const editId = searchParams.get('edit');
-  const chapters = getDemoChapters(new Date(DEMO_ANNIVERSARY_DATE));
+  const baseChapters = getDemoChapters(new Date(DEMO_ANNIVERSARY_DATE));
+  const [chapterOverrides, setChapterOverrides] = useState<TimelineChapterOverride[]>([]);
+  const chapters = getTimelineChapters(new Date(DEMO_ANNIVERSARY_DATE), chapterOverrides);
   const [tags, setTags] = useState<string[]>(['Milestone']);
   const [tagValue, setTagValue] = useState('');
   const [saved, setSaved] = useState(false);
@@ -37,11 +40,21 @@ export default function NewMemoryPage() {
     title: '',
     memoryDate: '',
     location: '',
-    chapterId: chapters[0]?.id ?? 'ch-1',
+    chapterId: baseChapters[0]?.id ?? 'ch-1',
     story: '',
     imagePath: '',
     videoPath: '',
   });
+
+  useEffect(() => {
+    let active = true;
+    loadCloudValue<TimelineChapterOverride[]>(STORY_COLLECTION_KEYS.timelineChapters, [])
+      .then((overrides) => { if (active) setChapterOverrides(overrides); })
+      .catch((cause: unknown) => {
+        if (active) setSaveError(cause instanceof Error ? cause.message : 'Could not load timeline chapters.');
+      });
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
     if (!editId) return;

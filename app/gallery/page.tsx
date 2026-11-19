@@ -11,13 +11,14 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Images, MapPin, Calendar, Filter, X, Plus, Pencil, Trash2, Play, ChevronLeft, ChevronRight } from 'lucide-react';
-import { demoMemories, getDemoChapters, DEMO_ANNIVERSARY_DATE } from '@/lib/demo-data';
-import type { Memory } from '@/lib/types';
+import { demoMemories, DEMO_ANNIVERSARY_DATE } from '@/lib/demo-data';
+import type { Memory, TimelineChapterOverride } from '@/lib/types';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { loadCloudValue, saveCloudValue } from '@/lib/story-cloud';
+import { loadCloudValue, saveCloudValue, STORY_COLLECTION_KEYS } from '@/lib/story-cloud';
 import { StoryImage } from '@/components/media/story-image';
 import { StoryVideo } from '@/components/media/story-video';
+import { getTimelineChapters } from '@/lib/timeline-chapters';
 
 const ALL_TAGS = ['milestone', 'travel', 'funny', 'first-date'];
 const FILTER_TAGS = ['all', ...ALL_TAGS];
@@ -32,9 +33,9 @@ type TagFilter = 'all' | string;
 
 export default function GalleryPage() {
   const anniversaryDate = new Date(DEMO_ANNIVERSARY_DATE);
-  const chapters = getDemoChapters(anniversaryDate);
 
   const [savedMemories, setSavedMemories] = useState<Memory[]>([]);
+  const [chapterOverrides, setChapterOverrides] = useState<TimelineChapterOverride[]>([]);
   const [tagFilter, setTagFilter] = useState<TagFilter>('all');
   const [chapterFilter, setChapterFilter] = useState<ChapterFilter>('all');
   const [dateFrom, setDateFrom] = useState('');
@@ -46,13 +47,21 @@ export default function GalleryPage() {
 
   useEffect(() => {
     let active = true;
-    loadCloudValue<Memory[]>(STORAGE_KEY, demoMemories)
-      .then((memories) => { if (active) setSavedMemories(memories); })
+    Promise.all([
+      loadCloudValue<Memory[]>(STORAGE_KEY, demoMemories),
+      loadCloudValue<TimelineChapterOverride[]>(STORY_COLLECTION_KEYS.timelineChapters, []),
+    ])
+      .then(([memories, overrides]) => {
+        if (!active) return;
+        setSavedMemories(memories);
+        setChapterOverrides(overrides);
+      })
       .catch((cause: unknown) => { if (active) setLoadError(cause instanceof Error ? cause.message : 'Could not load memories.'); });
     return () => { active = false; };
   }, []);
 
   const allMemories = savedMemories;
+  const chapters = getTimelineChapters(anniversaryDate, chapterOverrides, savedMemories);
 
   const deleteMemory = async (memory: Memory) => {
     if (!window.confirm(`Delete “${memory.title}”?`)) return;

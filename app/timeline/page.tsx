@@ -15,17 +15,19 @@ import { getDemoChapters } from '@/lib/demo-data';
 import {
   getChapterStartDate,
   getChapterEndDate,
+  getChapterTitle,
   isChapterUnlocked,
   getTotalChapters,
   formatChapterDateRange,
   parseDateSafe,
 } from '@/lib/date-utils';
 import { format, parseISO } from 'date-fns';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { TimelineChapterOverride, TimelineEvent } from '@/lib/types';
 import { makeLocalId } from '@/lib/local-data';
 import { loadCloudValue, saveCloudValue, STORY_COLLECTION_KEYS } from '@/lib/story-cloud';
 import { StoryImage } from '@/components/media/story-image';
+import { getTimelineChapters } from '@/lib/timeline-chapters';
 
 const STORAGE_KEY = STORY_COLLECTION_KEYS.timelineEvents;
 const MEMORY_STORAGE_KEY = STORY_COLLECTION_KEYS.memories;
@@ -39,12 +41,14 @@ export default function TimelinePage() {
   const [events, setEvents] = useState<TimelineEvent[]>([]);
   const [memories, setMemories] = useState(demoMemories);
   const [chapterOverrides, setChapterOverrides] = useState<TimelineChapterOverride[]>([]);
+  const chapterEditorRef = useRef<HTMLDivElement>(null);
   const [title, setTitle] = useState('');
   const [eventDate, setEventDate] = useState('');
   const [story, setStory] = useState('');
   const [imageUrl, setImageUrl] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingChapterId, setEditingChapterId] = useState<string | null>(null);
+  const [creatingChapter, setCreatingChapter] = useState(false);
   const [chapterTitle, setChapterTitle] = useState('');
   const [chapterIntro, setChapterIntro] = useState('');
   const [chapterImageUrl, setChapterImageUrl] = useState('');
@@ -73,12 +77,13 @@ export default function TimelinePage() {
     return () => { active = false; };
   }, []);
 
-  const chapters: Array<(typeof baseChapters)[number] & Partial<Pick<TimelineChapterOverride, 'startDate' | 'endDate'>>> = baseChapters.map((chapter) => {
-    const override = chapterOverrides.find((item) => item.chapterId === chapter.id);
-    if (override) return { ...chapter, ...override };
-    const coverImage = memories.find((memory) => memory.chapterId === chapter.id)?.imagePath ?? null;
-    return { ...chapter, coverImage };
-  });
+  useEffect(() => {
+    if (editingChapterId) {
+      chapterEditorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [editingChapterId]);
+
+  const chapters = getTimelineChapters(anniversaryDate, chapterOverrides, memories);
 
   const resetForm = () => {
     setEditingId(null);
@@ -142,6 +147,7 @@ export default function TimelinePage() {
 
   const resetChapterForm = () => {
     setEditingChapterId(null);
+    setCreatingChapter(false);
     setChapterTitle('');
     setChapterIntro('');
     setChapterImageUrl('');
@@ -152,6 +158,7 @@ export default function TimelinePage() {
 
   const editChapter = (chapter: (typeof chapters)[number]) => {
     setEditingChapterId(chapter.id);
+    setCreatingChapter(false);
     setChapterTitle(chapter.title);
     setChapterIntro(chapter.intro);
     setChapterImageUrl(chapter.coverImage ?? '');
@@ -161,7 +168,23 @@ export default function TimelinePage() {
     const savedOverride = chapterOverrides.find((item) => item.chapterId === chapter.id);
     if (savedOverride?.startDate) setChapterStartDate(savedOverride.startDate);
     if (savedOverride?.endDate) setChapterEndDate(savedOverride.endDate);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const createChapter = () => {
+    const monthNumber = Math.max(...chapters.map((chapter) => chapter.monthNumber), 0) + 1;
+    const chapterId = `ch-${monthNumber}`;
+    setEditingChapterId(chapterId);
+    setCreatingChapter(true);
+    setChapterTitle(getChapterTitle(monthNumber));
+    setChapterIntro('');
+    setChapterImageUrl('');
+    setChapterLetter('');
+    setChapterStartDate(format(getChapterStartDate(anniversaryDate, monthNumber), 'yyyy-MM-dd'));
+    setChapterEndDate(format(
+      new Date(getChapterEndDate(anniversaryDate, monthNumber).getTime() - 86400000),
+      'yyyy-MM-dd'
+    ));
+    setSaveError('');
   };
 
   const saveChapter = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -174,8 +197,10 @@ export default function TimelinePage() {
       return;
     }
 
+    const isCustomChapter = !baseChapters.some((chapter) => chapter.id === editingChapterId);
     const override: TimelineChapterOverride = {
       chapterId: editingChapterId,
+      ...(isCustomChapter ? { monthNumber: Number(editingChapterId.slice('ch-'.length)) } : {}),
       title: trimmedTitle,
       intro: trimmedIntro,
       coverImage: chapterImageUrl.trim() || null,
@@ -213,6 +238,9 @@ export default function TimelinePage() {
   };
 
   const sortedEvents = [...events].sort((a, b) => a.eventDate.localeCompare(b.eventDate));
+  const editingMonthNumber = editingChapterId
+    ? chapters.find((chapter) => chapter.id === editingChapterId)?.monthNumber ?? Number(editingChapterId.slice('ch-'.length))
+    : null;
 
   return (
     <AppShell>
@@ -266,10 +294,12 @@ export default function TimelinePage() {
         </Card>
 
         {editingChapterId && (
-          <Card className="mt-5 border-primary/15 shadow-soft">
+          <Card ref={chapterEditorRef} className="mt-5 scroll-mt-24 border-primary/15 shadow-soft">
             <CardContent className="p-5 sm:p-6">
-              <h2 className="font-serif-display text-xl font-semibold">Edit monthly chapter</h2>
-              <p className="mt-1 text-sm text-muted-foreground">Update the chapter title, description, cover image, and letter.</p>
+              <h2 className="font-serif-display text-xl font-semibold">
+                {creatingChapter ? 'Create' : 'Edit'} Month {editingMonthNumber}
+              </h2>
+              <p className="mt-1 text-sm text-muted-foreground">{creatingChapter ? 'Start a new chapter in your story.' : 'Update the chapter title, description, cover image, and letter.'}</p>
               <form onSubmit={saveChapter} className="mt-4 grid gap-4">
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
@@ -305,7 +335,7 @@ export default function TimelinePage() {
                   <Textarea id="chapter-letter" value={chapterLetter} onChange={(event) => setChapterLetter(event.target.value)} />
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <Button type="submit" disabled={saving} className="bg-gradient-wine text-white hover:opacity-90"><Save className="mr-2 h-4 w-4" />{saving ? 'Saving to cloud...' : 'Update chapter'}</Button>
+                  <Button type="submit" disabled={saving} className="bg-gradient-wine text-white hover:opacity-90"><Save className="mr-2 h-4 w-4" />{saving ? 'Saving to cloud...' : `${creatingChapter ? 'Add' : 'Save'} Month ${editingMonthNumber}`}</Button>
                   <Button type="button" variant="outline" onClick={resetChapterForm}><X className="mr-2 h-4 w-4" />Cancel</Button>
                 </div>
               </form>
@@ -358,6 +388,11 @@ export default function TimelinePage() {
 
         {/* Timeline line */}
         <div className="relative">
+          <div className="mb-5 flex justify-end">
+            <Button type="button" onClick={createChapter} className="bg-gradient-wine text-white hover:opacity-90">
+              <Plus className="mr-2 h-4 w-4" />Add a chapter
+            </Button>
+          </div>
           <div className="absolute left-4 sm:left-1/2 top-0 bottom-0 w-px bg-gradient-to-b from-primary/40 via-primary/20 to-transparent sm:-translate-x-px" />
 
           <div className="space-y-8">
@@ -461,9 +496,9 @@ export default function TimelinePage() {
                       )}
                       <div className="flex flex-wrap gap-2 border-t border-primary/10 p-3">
                         <Button type="button" size="sm" variant="outline" aria-label={`Edit month ${chapter.monthNumber}`} onClick={() => editChapter(chapter)}>
-                          <Pencil className="mr-1.5 h-4 w-4" />Edit
+                          <Pencil className="mr-1.5 h-4 w-4" />Edit Month {chapter.monthNumber}
                         </Button>
-                        {chapterOverrides.some((item) => item.chapterId === chapter.id) && (
+                        {baseChapters.some((item) => item.id === chapter.id) && chapterOverrides.some((item) => item.chapterId === chapter.id) && (
                           <Button type="button" size="sm" variant="ghost" aria-label={`Reset month ${chapter.monthNumber}`} onClick={() => resetChapter(chapter)}>
                             <Trash2 className="mr-1.5 h-4 w-4" />Reset
                           </Button>

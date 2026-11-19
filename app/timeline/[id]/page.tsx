@@ -11,12 +11,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { ArrowLeft, Calendar, MapPin, ArrowRight, Mail, Pencil, Save, Trash2, X } from 'lucide-react';
-import { demoMemories, getDemoChapters, DEMO_ANNIVERSARY_DATE } from '@/lib/demo-data';
+import { demoMemories, DEMO_ANNIVERSARY_DATE } from '@/lib/demo-data';
 import { formatChapterDateRange, getChapterEndDate, getChapterStartDate } from '@/lib/date-utils';
 import { format } from 'date-fns';
 import { useEffect, useMemo, useState } from 'react';
 import type { Memory, TimelineChapterOverride } from '@/lib/types';
 import { loadCloudValue, saveCloudValue, STORY_COLLECTION_KEYS } from '@/lib/story-cloud';
+import { getTimelineChapters } from '@/lib/timeline-chapters';
 import { StoryImage } from '@/components/media/story-image';
 import { StoryVideo } from '@/components/media/story-video';
 
@@ -24,8 +25,6 @@ export default function ChapterDetailPage() {
   const params = useParams();
   const chapterId = params?.id as string;
   const anniversaryDate = useMemo(() => new Date(DEMO_ANNIVERSARY_DATE), []);
-  const chapters = useMemo(() => getDemoChapters(anniversaryDate), [anniversaryDate]);
-  const baseChapter = chapters.find((c) => c.id === chapterId);
   const [chapterOverrides, setChapterOverrides] = useState<TimelineChapterOverride[]>([]);
   const [memories, setMemories] = useState<Memory[]>(demoMemories);
   const [loadError, setLoadError] = useState('');
@@ -41,10 +40,6 @@ export default function ChapterDetailPage() {
   const [endDate, setEndDate] = useState('');
 
   useEffect(() => {
-    if (!baseChapter) {
-      notFound();
-      return;
-    }
     let active = true;
     Promise.all([
       loadCloudValue<TimelineChapterOverride[]>(STORY_COLLECTION_KEYS.timelineChapters, []),
@@ -60,16 +55,11 @@ export default function ChapterDetailPage() {
         if (active) setLoadError(cause instanceof Error ? cause.message : 'Could not load this chapter.');
       });
     return () => { active = false; };
-  }, [baseChapter, chapterId]);
+  }, []);
 
-  const chapterOverride = chapterOverrides.find((item) => item.chapterId === chapterId);
-  const chapter = baseChapter
-    ? {
-        ...baseChapter,
-        coverImage: memories.find((memory) => memory.chapterId === baseChapter.id)?.imagePath ?? null,
-        ...chapterOverride,
-      }
-    : null;
+  const chapters = getTimelineChapters(anniversaryDate, chapterOverrides, memories);
+  const chapter = chapters.find((item) => item.id === chapterId);
+  if (loaded && !chapter) notFound();
   if (!chapter) return null;
 
   const chapterMemories = memories
