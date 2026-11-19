@@ -7,9 +7,12 @@ import { HeartDivider } from '@/components/layout/shared';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Calendar, MapPin, ArrowRight, Mail, Pencil, Trash2 } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { ArrowLeft, Calendar, MapPin, ArrowRight, Mail, Pencil, Save, Trash2, X } from 'lucide-react';
 import { demoMemories, getDemoChapters, DEMO_ANNIVERSARY_DATE } from '@/lib/demo-data';
-import { formatChapterDateRange } from '@/lib/date-utils';
+import { formatChapterDateRange, getChapterEndDate, getChapterStartDate } from '@/lib/date-utils';
 import { format } from 'date-fns';
 import { useEffect, useMemo, useState } from 'react';
 import type { Memory, TimelineChapterOverride } from '@/lib/types';
@@ -23,9 +26,19 @@ export default function ChapterDetailPage() {
   const anniversaryDate = useMemo(() => new Date(DEMO_ANNIVERSARY_DATE), []);
   const chapters = useMemo(() => getDemoChapters(anniversaryDate), [anniversaryDate]);
   const baseChapter = chapters.find((c) => c.id === chapterId);
-  const [chapterOverride, setChapterOverride] = useState<TimelineChapterOverride | null>(null);
+  const [chapterOverrides, setChapterOverrides] = useState<TimelineChapterOverride[]>([]);
   const [memories, setMemories] = useState<Memory[]>(demoMemories);
   const [loadError, setLoadError] = useState('');
+  const [loaded, setLoaded] = useState(false);
+  const [saveError, setSaveError] = useState('');
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [title, setTitle] = useState('');
+  const [intro, setIntro] = useState('');
+  const [coverImage, setCoverImage] = useState('');
+  const [monthlyLetter, setMonthlyLetter] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
 
   useEffect(() => {
     if (!baseChapter) {
@@ -39,8 +52,9 @@ export default function ChapterDetailPage() {
     ])
       .then(([overrides, savedMemories]) => {
         if (!active) return;
-        setChapterOverride(overrides.find((item) => item.chapterId === chapterId) ?? null);
+        setChapterOverrides(overrides);
         setMemories(savedMemories);
+        setLoaded(true);
       })
       .catch((cause: unknown) => {
         if (active) setLoadError(cause instanceof Error ? cause.message : 'Could not load this chapter.');
@@ -48,6 +62,7 @@ export default function ChapterDetailPage() {
     return () => { active = false; };
   }, [baseChapter, chapterId]);
 
+  const chapterOverride = chapterOverrides.find((item) => item.chapterId === chapterId);
   const chapter = baseChapter
     ? {
         ...baseChapter,
@@ -62,6 +77,53 @@ export default function ChapterDetailPage() {
     .sort((a, b) => new Date(a.memoryDate).getTime() - new Date(b.memoryDate).getTime());
 
   const dateRange = formatChapterDateRange(anniversaryDate, chapter.monthNumber, chapter.startDate, chapter.endDate);
+
+  const beginEditing = () => {
+    setTitle(chapter.title);
+    setIntro(chapter.intro);
+    setCoverImage(chapter.coverImage ?? '');
+    setMonthlyLetter(chapter.monthlyLetter ?? '');
+    setStartDate(chapter.startDate ?? format(getChapterStartDate(anniversaryDate, chapter.monthNumber), 'yyyy-MM-dd'));
+    setEndDate(chapter.endDate ?? format(
+      new Date(getChapterEndDate(anniversaryDate, chapter.monthNumber).getTime() - 86400000),
+      'yyyy-MM-dd'
+    ));
+    setSaveError('');
+    setEditing(true);
+  };
+
+  const saveChapter = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const trimmedTitle = title.trim();
+    const trimmedIntro = intro.trim();
+    if (!trimmedTitle || !trimmedIntro || !startDate || !endDate) return;
+    if (endDate < startDate) {
+      setSaveError('The chapter end date must be on or after its start date.');
+      return;
+    }
+
+    const override: TimelineChapterOverride = {
+      chapterId: chapter.id,
+      title: trimmedTitle,
+      intro: trimmedIntro,
+      coverImage: coverImage.trim() || null,
+      monthlyLetter: monthlyLetter.trim() || null,
+      startDate,
+      endDate,
+    };
+    const next = [...chapterOverrides.filter((item) => item.chapterId !== chapter.id), override];
+    setSaving(true);
+    setSaveError('');
+    try {
+      await saveCloudValue(STORY_COLLECTION_KEYS.timelineChapters, next);
+      setChapterOverrides(next);
+      setEditing(false);
+    } catch (cause) {
+      setSaveError(cause instanceof Error ? cause.message : 'Could not save this chapter.');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const deleteMemory = async (memory: Memory) => {
     if (!window.confirm(`Delete “${memory.title}” from this chapter?`)) return;
@@ -83,6 +145,54 @@ export default function ChapterDetailPage() {
             <ArrowLeft className="mr-2 h-4 w-4" /> Back to timeline
           </Link>
         </Button>
+        <Button type="button" size="sm" variant="outline" className="mb-6 ml-2" onClick={beginEditing} disabled={!loaded}>
+          <Pencil className="mr-1.5 h-4 w-4" />Edit month
+        </Button>
+
+        {editing && (
+          <Card className="mb-8 border-primary/15 shadow-soft">
+            <CardContent className="p-5 sm:p-6">
+              <h2 className="font-serif-display text-xl font-semibold">Edit month {chapter.monthNumber}</h2>
+              <form onSubmit={saveChapter} className="mt-4 grid gap-4">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="chapter-start-date">Start date</Label>
+                    <Input id="chapter-start-date" type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} required />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="chapter-end-date">End date</Label>
+                    <Input id="chapter-end-date" type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} min={startDate || undefined} required />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="chapter-title">Title</Label>
+                  <Input id="chapter-title" value={title} onChange={(event) => setTitle(event.target.value)} required />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="chapter-intro">Description</Label>
+                  <Textarea id="chapter-intro" value={intro} onChange={(event) => setIntro(event.target.value)} required />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="chapter-image">Cover image URL</Label>
+                  <Input id="chapter-image" type="url" value={coverImage} onChange={(event) => setCoverImage(event.target.value)} placeholder="https://example.com/photo.jpg" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="chapter-letter">Monthly letter (optional)</Label>
+                  <Textarea id="chapter-letter" value={monthlyLetter} onChange={(event) => setMonthlyLetter(event.target.value)} />
+                </div>
+                {saveError && <p role="alert" className="text-sm text-destructive">{saveError}</p>}
+                <div className="flex flex-wrap gap-2">
+                  <Button type="submit" disabled={saving} className="bg-gradient-wine text-white hover:opacity-90">
+                    <Save className="mr-2 h-4 w-4" />{saving ? 'Saving to cloud...' : 'Save month'}
+                  </Button>
+                  <Button type="button" variant="outline" onClick={() => setEditing(false)} disabled={saving}>
+                    <X className="mr-2 h-4 w-4" />Cancel
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Cover */}
         {chapter.coverImage && (
